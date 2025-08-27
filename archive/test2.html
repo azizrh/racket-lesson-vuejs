@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S-Expression Practice</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121935; --muted:#8ea0c6; --text:#e8eeff; --accent:#6aa6ff; --ok:#31d061; --err:#ff6b6b;
+      --radius:16px;
+    }
+    body{margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#0b1020,#0d1330 40%,#0e1738)}
+    main{display:grid;gap:18px;padding:18px;grid-template-columns: 1fr 1fr;align-items:start}
+    @media (max-width: 980px){main{grid-template-columns:1fr}}
+    .card{background:var(--panel);border:1px solid #1c2550;border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    textarea{width:100%;min-height:300px;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px;color:var(--text)}
+    .input{width:100%;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px}
+    .btn{background:linear-gradient(180deg,#2563eb,#1d4ed8);border:0;color:white;padding:10px 14px;border-radius:12px;cursor:pointer}
+    .btn.secondary{background:#0f1636;border:1px solid #2a3574;color:#cfe2ff}
+    .status{border-radius:12px;padding:12px;margin-top:10px}
+    .status.ok{background:rgba(49,208,97,.1);border:1px solid rgba(49,208,97,.35)}
+    .status.err{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35)}
+    /* Modal */
+    .modal{display:none;position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.6);align-items:center;justify-content:center}
+    .modal-content{background:#121935;padding:20px;border-radius:16px;max-width:400px;text-align:center}
+    .modal-content h2{margin-top:0}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <textarea id="lessonText"></textarea>
+    </section>
+    <section class="card">
+      <div id="problemText"></div>
+      <input id="answerInput" class="input" placeholder="e.g. (+ 5 4)" />
+      <button class="btn" id="checkBtn">Check</button>
+      <div id="result" class="status" style="display:none"></div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div class="modal" id="congratsModal">
+    <div class="modal-content">
+      <h2>🎉 Congratulations!</h2>
+      <p>You have solved 3 problems correctly!</p>
+      <button class="btn" id="closeModalBtn">Close</button>
+    </div>
+  </div>
+
+  <script>
+  let problems = [
+    {prompt_text:'Write `5 + 4` as an S-expression.', answer_text:'(+ 5 4)'},
+    {prompt_text:'Write `22 - 9` as an S-expression.', answer_text:'(- 22 9)'},
+    {prompt_text:'Write `2 * 24` as an S-expression.', answer_text:'(* 2 24)'},
+    {prompt_text:'Write `5 - 4` as an S-expression.', answer_text:'(- 5 4)'},
+    {prompt_text:'Write `3 * 3` as an S-expression.', answer_text:'(* 3 3)'}
+  ];
+  let idx = 0;
+  let successCount = 0;
+
+  function showProblem(){
+    document.getElementById("problemText").textContent = problems[idx].prompt_text;
+    document.getElementById("answerInput").value = '';
+    document.getElementById("result").style.display='none';
+  }
+
+  function showOk(msg){
+    let el=document.getElementById("result");
+    el.className='status ok'; el.style.display='block'; el.textContent = '✅ '+msg;
+  }
+  function showErr(msg){
+    let el=document.getElementById("result");
+    el.className='status err'; el.style.display='block'; el.textContent = '❌ '+msg;
+  }
+
+  function check(){
+    let input=document.getElementById("answerInput").value.trim();
+    let ans=problems[idx].answer_text;
+    if(input===ans){
+      showOk('Correct!');
+      successCount++;
+      if(successCount===3){
+        document.getElementById("congratsModal").style.display='flex';
+      }
+    } else {
+      showErr('Try again. Correct answer is '+ans);
+    }
+    idx=(idx+1)%problems.length;
+    setTimeout(showProblem,1000);
+  }
+
+  document.getElementById("checkBtn").addEventListener("click", check);
+  document.getElementById("closeModalBtn").addEventListener("click", ()=>{
+    document.getElementById("congratsModal").style.display='none';
+  });
+
+  showProblem();
+  </script>
+</body>
+</html>

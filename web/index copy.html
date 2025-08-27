@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S-Expression Practice</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121935; --muted:#8ea0c6; --text:#e8eeff; --accent:#6aa6ff; --ok:#31d061; --err:#ff6b6b;
+      --radius:16px; --sticky-top: 86px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#0b1020,#0d1330 40%,#0e1738)}
+    header{padding:20px 24px;border-bottom:1px solid #1c2550;background:rgba(0,0,0,.2);backdrop-filter: blur(6px);position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    header h1{margin:0;font-size:20px;letter-spacing:.3px}
+    main{display:grid;gap:18px;padding:18px;grid-template-columns: 1fr 1fr;align-items:start}
+    @media (max-width: 980px){main{grid-template-columns:1fr}}
+    .card{background:var(--panel);border:1px solid #1c2550;border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .card header{position:static;background:transparent;border:0;padding:16px 16px 0}
+    .card .content{padding:16px}
+    .muted{color:var(--muted)}
+    textarea,input,select,button{font:inherit;color:inherit}
+    textarea{width:100%;min-height:300px;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px;color:var(--text)}
+    select{background:#0e1430;border:1px solid #243067;border-radius:12px;padding:8px 10px;color:var(--text)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .stack{display:grid;gap:12px}
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid #26306a;background:#0f1636;border-radius:999px;font-size:12px;color:var(--muted)}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0b1130;border:1px solid #2a3574;border-bottom-width:2px;border-radius:6px;padding:2px 6px;color:#cfe2ff}
+    .panel{background:#0e1430;border:1px dashed #2a3574;border-radius:12px;padding:12px}
+    .input{width:100%;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px}
+    .btn{background:linear-gradient(180deg,#2563eb,#1d4ed8);border:0;color:white;padding:10px 14px;border-radius:12px;cursor:pointer;transition:.15s transform, .2s filter;box-shadow:0 6px 18px rgba(37,99,235,.3)}
+    .btn.secondary{background:#0f1636;border:1px solid #2a3574;color:#cfe2ff;box-shadow:none}
+    .btn:active{transform:translateY(1px)}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .status{border-radius:12px;padding:12px}
+    .status.ok{background:rgba(49,208,97,.1);border:1px solid rgba(49,208,97,.35)}
+    .status.err{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35)}
+    .small{font-size:12px}
+    code{background:#0b1130;border:1px solid #2a3574;border-radius:8px;padding:1px 6px}
+    .footer{padding:10px 16px;border-top:1px solid #1c2550;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom-left-radius:var(--radius);border-bottom-right-radius:var(--radius)}
+
+    @media (min-width: 981px){
+      #practiceCard{ position: sticky; top: var(--sticky-top); align-self: start; }
+    }
+
+    .modal{
+      display:flex; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%;
+      background:rgba(0,0,0,.6); align-items:center; justify-content:center;
+    }
+    [x-cloak] { display: none !important; }
+    .modal-content{background:#121935;padding:20px;border-radius:16px;max-width:480px;text-align:center;border:1px solid #1c2550;outline:none}
+    .modal-content h2{margin:4px 0 10px}
+    .lesson-display {white-space: pre-wrap;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px;color:var(--text);}
+    .lesson-display p {margin: 0 0 0.5em;}
+    .lesson-display code {font-family: monospace;background:#0b1130;border:1px solid #2a3574;border-radius:6px;padding:2px 4px;}
+  </style>
+</head>
+<body x-data="app()" x-init="init()" 
+  @keydown.window.enter.prevent="if(!$event.shiftKey && !$event.ctrlKey){ if(!showLogin && !isRevealed) check() }" 
+  @keydown.window.ctrl.enter.prevent="if(!showLogin && !isRevealed) reveal()">
+  <header>
+    <h1>S-Expression Practice • Lesson + Validator</h1>
+    <div class="row">
+      <span class="pill" x-show="username">Signed in as <strong x-text="username"></strong></span>
+      <button class="btn secondary" x-show="!username" @click="openLogin()">Sign in</button>
+      <button class="btn secondary" x-show="username" @click="logout()">Log out</button>
+    </div>
+  </header>
+
+  <main :style="showLogin ? 'filter: blur(2px); pointer-events:none; user-select:none;' : ''">
+    <!-- LEFT: Lesson text -->
+    <section class="card" id="lessonCard">
+      <header>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h2 style="margin:0;font-size:18px">Lesson</h2>
+        </div>
+        <div class="row" style="margin:10px 0 0">
+          <!-- Lesson navigation -->
+          <button class="btn secondary" id="lessonPrevBtn" :disabled="!hasMultipleLessons" @click="setLessonByIndex(lessonIdx - 1)">◀ Prev lesson</button>
+          <select id="lessonSelect" aria-label="Choose lesson" x-model="selectedLessonId" @change="setLessonById(selectedLessonId)">
+            <template x-for="l in lessons" :key="l.id">
+              <option
+                :value="String(l.id)"
+                :disabled="!hasAccessToLesson(l.id)"
+                x-text="(hasAccessToLesson(l.id) ? '' : '🔒 ') + `${l.title} (ID ${l.id})`">
+              </option>
+            </template>
+          </select>
+          <button class="btn secondary" id="lessonNextBtn"
+            :disabled="!hasMultipleLessons || !hasAccessToLesson(nextLessonId())"
+            @click="setLessonByIndex(lessonIdx + 1)">Next lesson ▶</button>
+        </div>
+      </header>
+      <div class="content">
+        <div class="stack">
+          <div id="lessonText" class="lesson-display" x-html="lessonBodyHtml"></div>
+          <div class="row" style="justify-content:flex-end">
+            <button class="btn secondary" id="refreshLessonBtn" hidden @click="refreshLesson()">Refresh from server</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Problems & validator -->
+    <section class="card" id="practiceCard">
+      <header>
+        <h2 style="margin:0 0 6px 0;font-size:18px">Problems & Validator</h2>
+        <div class="muted small" x-show="false">Your answer is validated by the backend (CFG or Racket), based on the lesson/problem config.</div>
+      </header>
+      <div class="content">
+        <div class="stack">
+          <div class="row" style="justify-content:space-between;align-items:center" x-show="false">
+            <div class="row" style="gap:16px" hidden>
+              <label class="pill" hidden><input type="checkbox" id="naryToggle" x-model="allowNary"  /> Allow n-ary (≥2 operands)</label>
+              <label class="pill" hidden><input type="checkbox" id="allowNeg" x-model="allowNeg"/> Allow negative integers</label>
+            </div>
+            <div class="row">
+              <button class="btn secondary" id="prevBtn" @click="prevProblem()">◀ Prev</button>
+              <button class="btn secondary" id="nextBtn" @click="nextProblem()">Next ▶</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="muted small">Problem</div>
+            <div id="problemText" style="font-size:22px;margin-top:6px" x-text="currentProblem ? cleanProblemText(currentProblem.prompt_text) : 'No problems found for this lesson.'"></div>
+            <div class="pill" x-show="isRevealed" style="margin-top:10px">Revealed — answers for this problem won’t be accepted</div>
+          </div>
+
+          <label class="muted small" for="answerInput">Your answer</label>
+          <input id="answerInput" class="input" placeholder="e.g. (+ 5 4) or Racket code" autocomplete="off" x-model="answer" x-ref="answerInput" :disabled="isRevealed" />
+
+          <div class="row" style="justify-content:flex-start;gap:10px">
+            <button class="btn" id="checkBtn" :disabled="isRevealed" @click="check">Check (↵)</button>
+            <button class="btn secondary" id="revealBtn" :disabled="isRevealed" @click="reveal">Reveal (Ctrl + ↵)</button>
+            <button class="btn secondary" id="shuffleBtn" x-show="false" @click="shuffle">Shuffle</button>
+          </div>
+
+          <div id="result" class="status" x-show="resultVisible" :class="resultOk ? 'ok' : 'err'" x-text="resultMessage"></div>
+        </div>
+      </div>
+      <!-- <div class="footer small muted">
+        <div>Keyboard: <span class="kbd">↵</span> to check • <span class="kbd">Ctrl</span> + <span class="kbd">↵</span> to reveal</div>
+      </div> -->
+    </section>
+  </main>
+
+  <!-- Congrats Modal (3-in-a-row) -->
+  <div class="modal" id="congratsModal" x-cloak x-show="showModal" x-transition.opacity>
+    <div class="modal-content" x-transition.scale>
+      <h2>🎉 Congratulations!</h2>
+      <p>You solved 3 problems correctly in a row!</p>
+      <div class="row" style="justify-content:center;margin-top:12px;gap:10px">
+        <button class="btn" id="keepGoingBtn" @click="confirmAdvanceLesson()">Unlock next lesson</button>
+        <button class="btn secondary" id="resetCounterBtn" @click="resetStreakAndStay()">Stay &amp; reset</button>
+      </div>
+    </div>
+  </div>
+  <!-- Reveal Confirm Modal -->
+  <div class="modal" id="revealConfirmModal" x-cloak x-show="showRevealConfirm" x-transition.opacity>
+    <div class="modal-content" x-transition.scale tabindex="0"
+         @keydown.escape.prevent.stop="cancelReveal()"
+         @keydown.enter.prevent.stop="confirmReveal()">
+      <h2>Reveal answer?</h2>
+      <p class="muted small" style="margin-top:-6px">If you reveal, this problem will be skipped and we'll move to the next problem. It won’t count toward your streak.</p>
+      <div class="row" style="justify-content:center;margin-top:12px;gap:10px">
+        <button class="btn" @click="confirmReveal()">Reveal &amp; Skip to Next Problem</button>
+        <button class="btn secondary" @click="cancelReveal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal (username-based) -->
+  <div class="modal" id="loginModal" x-cloak x-show="showLogin" x-transition.opacity>
+    <div class="modal-content" x-transition.scale tabindex="0" 
+         @keydown.enter.stop.prevent="loginWithUsername()">
+      <h2>Sign in</h2>
+      <p class="muted small" style="margin-top:-6px">Enter a username to start or continue. We’ll create your account if it doesn’t exist.</p>
+
+      <div class="stack" style="text-align:left;margin-top:12px">
+        <div class="panel">
+          <div class="row">
+            <input class="input" style="flex:1" placeholder="Your username (e.g. alice)"
+                   x-model="loginUsername" />
+            <button class="btn secondary" @click="loginWithUsername()">Continue</button>
+          </div>
+        </div>
+        <div class="status err small" x-show="loginError" x-text="loginError"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- deps -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Alpine app -->
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('app', () => ({
+        // ====== Config ======
+        API_BASE: "http://localhost:8000",
+
+        // ====== User/Auth State (username-first) ======
+        username: null,        // string
+        userId: null,          // numeric id returned by backend; kept internally
+        user: null,            // {user_id, username, active_lesson, lessons}
+        showLogin: false,
+        loginUsername: '',
+        loginError: '',
+        creatingUser: false,   // not used but kept for parity
+
+        // ====== Lesson/Practice State ======
+        lessons: [],          // [{id,title,body_md}, ...] (ordered earliest->latest)
+        lessonIdx: 0,
+        problems: [],
+        problemIdx: 0,
+        successCount: 0,
+        selectedLessonId: null,
+        answer: '',
+        lessonBodyHtml: '',
+        resultVisible: false,
+        resultOk: false,
+        resultMessage: '',
+        allowNary: false,
+        allowNeg: false,
+        showModal: false,
+        showRevealConfirm: false,
+        revealedById: {},     // { [problemId]: true }
+
+        // Auto-advance per problem
+        advanceOnCorrect: true,
+        advanceDelayMs: 3000,
+        advanceTimerId: null,
+        clearAdvanceTimer(){
+          if (this.advanceTimerId){ clearTimeout(this.advanceTimerId); this.advanceTimerId = null; }
+        },
+
+        // ====== Derived ======
+        get hasMultipleLessons(){ return this.lessons.length > 1; },
+        get currentLesson(){ return this.lessons[this.lessonIdx] || null; },
+        get currentProblem(){ return this.problems[this.problemIdx] || null; },
+        get cfgText(){ return this.getCfgText(this.allowNary, this.allowNeg); },
+        get isRevealed(){ return !!(this.currentProblem && this.revealedById[this.currentProblem.id]); },
+
+        hasAccessToLesson(id){ return !!this.user?.lessons?.includes(Number(id)); },
+        nextLessonId(){
+          if(!this.lessons.length) return null;
+          const ordered = this.lessons.map(l=>l.id);
+          const curId = this.currentLesson?.id;
+          const i = ordered.indexOf(curId);
+          return (i>=0 && i<ordered.length-1) ? ordered[i+1] : null;
+        },
+
+        // ====== Lifecycle ======
+        async init(){
+          // compute sticky top from header height
+          try{
+            const h = document.querySelector('header');
+            if (h){
+              document.documentElement.style.setProperty('--sticky-top', (h.offsetHeight + 12) + 'px');
+              new ResizeObserver(() => {
+                document.documentElement.style.setProperty('--sticky-top', (h.offsetHeight + 12) + 'px');
+              }).observe(h);
+            }
+          }catch(e){ /* noop */ }
+
+          // Try load user from localStorage first
+          this.loadLocalUser();
+          if (this.username){
+            try {
+              this.user = await this.getUserByUsername(this.username);
+              this.userId = this.user?.user_id || null;
+              await this.bootstrapLessons();
+            } catch (e){
+              console.warn('Stored username invalid, clearing.', e);
+              this.logout(true);
+              this.openLogin();
+            }
+          } else {
+            this.openLogin();
+          }
+        },
+
+        async bootstrapLessons(){
+          try{
+            this.lessons = await this.listLessons();
+            if(this.lessons.length){
+              const preferredId = this.user?.active_lesson || this.lessons[0].id;
+              this.selectedLessonId = String(preferredId);
+              await this.setLessonById(preferredId);
+            } else {
+              this.setResult(false, 'No lessons found. Please add one in the database.');
+            }
+          } catch (err){
+            console.error(err);
+            this.setResult(false, err?.message || 'Failed to load lessons.');
+          }
+        },
+
+        // ====== Backend I/O: Users (username-first) ======
+        async loginWithUsername(){
+          this.loginError = '';
+          const uname = (this.loginUsername || '').trim();
+          if (!uname){
+            this.loginError = 'Please enter a username.';
+            return;
+          }
+          try{
+            const res = await fetch(`${this.API_BASE}/login`, {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ username: uname })
+            });
+            if (!res.ok){
+              const text = await res.text().catch(()=> '');
+              throw new Error(text || `Login failed (${res.status})`);
+            }
+            const user = await res.json();
+            this.setUser(user);
+            this.closeLogin();
+            await this.bootstrapLessons();
+          } catch(e){
+            console.error(e);
+            this.loginError = e?.message || 'Failed to log in.';
+          }
+        },
+
+        async getUserByUsername(uname){
+          const res = await fetch(`${this.API_BASE}/users/by-username/${encodeURIComponent(uname)}`);
+          if (!res.ok){
+            const text = await res.text().catch(()=> '');
+            throw new Error(text || `Failed to load user (${res.status})`);
+          }
+          return await res.json();
+        },
+
+        setUser(user){
+          this.user = user || null;
+          this.username = user?.username || null;
+          this.userId = user?.user_id || null;
+          if (this.username){
+            localStorage.setItem('username', this.username);
+          }
+        },
+        loadLocalUser(){
+          const raw = localStorage.getItem('username');
+          this.username = raw || null;
+        },
+        logout(silent=false){
+          localStorage.removeItem('username');
+          this.user = null;
+          this.username = null;
+          this.userId = null;
+          // Clear UI
+          this.answer = '';
+          this.problems = [];
+          this.lessons = [];
+          this.lessonIdx = 0;
+          this.problemIdx = 0;
+          if(!silent) this.openLogin();
+        },
+        openLogin(){
+          this.showLogin = true;
+          this.loginUsername = this.username || '';
+          this.loginError = '';
+          this.$nextTick(() => {
+            const el = document.querySelector('#loginModal .modal-content');
+            el && el.focus && el.focus();
+          });
+        },
+        closeLogin(){ this.showLogin = false; },
+
+        // ====== Backend I/O: Lessons/Problems/Validation/Attempts ======
+        async listLessons(){
+          const res = await fetch(`${this.API_BASE}/lessons`);
+          if(!res.ok) throw new Error('Failed to list lessons');
+          return await res.json();
+        },
+        async loadLesson(lessonId){
+          const res = await fetch(`${this.API_BASE}/lessons/${lessonId}`);
+          if(!res.ok) throw new Error('Lesson not found');
+          return await res.json();
+        },
+        async loadProblems(lessonId){
+          const res = await fetch(`${this.API_BASE}/lessons/${lessonId}/problems`);
+          if(!res.ok) throw new Error('Failed to load problems');
+          return await res.json();
+        },
+        async backendValidate(problemId, submission){
+          const res = await fetch(`${this.API_BASE}/validate`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ problem_id: problemId, submission })
+          });
+          if(!res.ok){
+            const text = await res.text().catch(()=> "");
+            throw new Error(`Backend error (${res.status}): ${text || 'unknown'}`);
+          }
+          return await res.json();
+        },
+        async recordAttempt(problemId, submission, backendResult){
+          if (!this.username) return;
+          try{
+            await fetch(`${this.API_BASE}/attempts`, {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({
+                username: this.username,           // username-first
+                problem_id: problemId,
+                submitted_text: submission,
+                is_correct: !!backendResult.ok,
+                stage: backendResult.stage || null,
+                error_reason: backendResult.ok ? null : (backendResult.error || null),
+                details: backendResult.details || null
+              })
+            });
+          } catch(e){
+            console.warn('Failed to record attempt:', e);
+          }
+        },
+
+        // ====== Helpers ======
+        cleanProblemText(raw){
+          if (typeof raw !== 'string') return '';
+          return raw.replaceAll('\\n', '\n').trim();
+        },
+        setLessonBody(md){
+          this.lessonBodyHtml = (window.marked ? marked.parse(md || '') : md || '');
+        },
+        setResult(ok, msg){
+          this.resultOk = !!ok;
+          this.resultMessage = (ok ? '✅ ' : '❌ ') + (msg || '');
+          this.resultVisible = true;
+        },
+        hideResult(){ this.resultVisible = false; },
+
+        getCfgText(nary, allowNeg){
+          return (
+`S        ::= WS? Expr WS?
+
+Expr     ::= Int
+           | "(" WS? Op WS Expr ` + (nary ? '(WS Expr)+' : 'WS Expr') + ` WS? ")"
+
+Op       ::= "+" | "-" | "*"
+
+Int      ::= ` + (allowNeg ? `["-"] ("0" | NonZeroDigit {Digit})` : `"0" | NonZeroDigit {Digit}`) + `
+Digit    ::= "0" | NonZeroDigit
+NonZeroDigit ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+WS       ::= {" " | "\\t" | "\\n" | "\\r"}`
+          );
+        },
+
+        // ====== UI Actions ======
+        async setLessonByIndex(newIdx){
+          if (!this.lessons.length) return;
+          const idx = (newIdx + this.lessons.length) % this.lessons.length;
+          const target = this.lessons[idx];
+
+          if (!this.hasAccessToLesson(target.id)){
+            this.setResult(false, '🔒 Next lesson is locked. Get 3 correct in a row to unlock.');
+            return;
+          }
+
+          this.lessonIdx = idx;
+          this.selectedLessonId = String(target.id);
+
+          const freshLesson = await this.loadLesson(target.id);
+          this.setLessonBody(this.cleanProblemText(freshLesson.body_md) || '');
+
+          this.problems = await this.loadProblems(target.id);
+          this.problemIdx = 0;
+          this.successCount = 0;
+          this.showProblem();
+        },
+        async setLessonById(id){
+          const idx = this.lessons.findIndex(l => l.id === Number(id));
+          if (idx >= 0) {
+            await this.setLessonByIndex(idx);
+          }
+        },
+        async refreshLesson(){
+          if (!this.lessons.length) return;
+          const current = this.lessons[this.lessonIdx];
+          const lesson = await this.loadLesson(current.id);
+          this.setLessonBody(this.cleanProblemText(lesson.body_md) || '');
+        },
+
+        showProblem(){
+          this.clearAdvanceTimer();
+          this.answer = '';
+          this.hideResult();
+          this.$nextTick(()=> { if(!this.showLogin) this.$refs.answerInput?.focus(); });
+        },
+
+        prevProblem(){
+          if(!this.problems.length) return;
+          this.clearAdvanceTimer();
+          this.problemIdx = (this.problemIdx - 1 + this.problems.length) % this.problems.length;
+          this.showProblem();
+        },
+
+        nextProblem(){
+          if(!this.problems.length) return;
+          this.clearAdvanceTimer();
+          this.problemIdx = (this.problemIdx + 1) % this.problems.length;
+          this.showProblem();
+        },
+
+        async check(){
+          if (this.showLogin) return;
+          if (this.isRevealed){ this.setResult(false, 'You revealed this one. Try the next problem.'); return; }
+          const input = (this.answer || '').trim();
+          if(!input){ this.setResult(false, 'Type your answer first'); return; }
+
+          try{
+            const p = this.currentProblem;
+            if(!p){ this.setResult(false, 'No problem selected'); return; }
+            const res = await this.backendValidate(p.id, input);
+
+            // Record attempt (fire-and-forget)
+            this.recordAttempt(p.id, input, res);
+
+            if (res.ok){
+              const stage = res.stage ? ` (${res.stage})` : '';
+              this.setResult(true, 'Correct!' + stage);
+              this.successCount++;
+
+              if (this.successCount >= 3){
+                this.openCongrats();
+              }
+
+              if (this.advanceOnCorrect){
+                this.clearAdvanceTimer();
+                this.advanceTimerId = setTimeout(() => {
+                  if (!this.showModal && !this.showLogin) {
+                    this.nextProblem();
+                  }
+                  this.clearAdvanceTimer();
+                }, this.advanceDelayMs);
+              }
+            } else {
+              let msg = res.error || 'Incorrect.';
+              if (res.details && res.details.failures) {
+                const f = res.details.failures[0];
+                if (f && f.expr) msg += `\nFailed test: ${f.expr}`;
+              }
+              this.setResult(false, msg);
+              // For strict "in a row", you could reset:
+              // this.successCount = 0;
+            }
+          } catch(e){
+            this.setResult(false, e.message || 'Backend validation failed.');
+          }
+        },
+
+        reveal(){
+          if (this.showLogin) return;
+          if (this.isRevealed) return;
+          this.openRevealConfirm();
+        },
+
+        openRevealConfirm(){ this.showRevealConfirm = true; this.$nextTick(()=> { document.querySelector('#revealConfirmModal .modal-content')?.focus(); }); },
+        cancelReveal(){ this.showRevealConfirm = false; },
+        async confirmReveal(){
+          this.showRevealConfirm = false;
+          const p = this.currentProblem;
+          const ans = p?.answer_text || 'N/A';
+          if (p){ this.revealedById[p.id] = true; }
+          this.setResult(true, 'Answer: ' + ans + ' — (This problem is marked as revealed and won’t count toward your streak)');
+          this.clearAdvanceTimer();
+          this.advanceTimerId = setTimeout(() => {
+            if (!this.showModal && !this.showLogin) {
+              this.nextProblem();
+            }
+            this.clearAdvanceTimer();
+          }, this.advanceDelayMs);
+        },
+
+        shuffle(){
+          for(let i=this.problems.length-1;i>0;i--){
+            const j=Math.floor(Math.random()*(i+1));
+            [this.problems[i], this.problems[j]] = [this.problems[j], this.problems[i]];
+          }
+          this.problemIdx = 0;
+          this.showProblem();
+        },
+
+        // ====== Modal controls for next-lesson flow ======
+        openCongrats(){ this.showModal = true; },
+        closeCongrats(){ this.showModal = false; },
+
+        async confirmAdvanceLesson(){
+          this.closeCongrats();
+          if (!this.username){ this.setResult(false, 'Please sign in first.'); return; }
+          try{
+            // Use username-based advance endpoint
+            const res = await fetch(`${this.API_BASE}/users/by-username/${encodeURIComponent(this.username)}/advance`, { method: 'POST' });
+            if(!res.ok){
+              const text = await res.text().catch(()=> '');
+              throw new Error(text || `Advance failed (${res.status})`);
+            }
+            const updated = await res.json();
+
+            // Update local user state
+            this.user = updated;
+            this.username = updated.username;
+            this.userId = updated.user_id;
+            localStorage.setItem('username', this.username);
+
+            this.successCount = 0;
+
+            // Jump to newly activated lesson
+            if (updated.active_lesson){
+              await this.setLessonById(updated.active_lesson);
+              this.setResult(true, 'Next lesson unlocked!');
+            }
+          } catch(e){
+            this.setResult(false, e?.message || 'Could not advance to next lesson.');
+          }
+        },
+
+        resetStreakAndStay(){
+          this.successCount = 0;
+          this.closeCongrats();
+        },
+      }));
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S-Expression Practice</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121935; --muted:#8ea0c6; --text:#e8eeff; --accent:#6aa6ff; --ok:#31d061; --err:#ff6b6b;
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#0b1020,#0d1330 40%,#0e1738)}
+    header{padding:20px 24px;border-bottom:1px solid #1c2550;background:rgba(0,0,0,.2);backdrop-filter: blur(6px);position:sticky;top:0;z-index:10}
+    header h1{margin:0;font-size:20px;letter-spacing:.3px}
+    main{display:grid;gap:18px;padding:18px;grid-template-columns: 1fr 1fr;align-items:start}
+    @media (max-width: 980px){main{grid-template-columns:1fr}}
+    .card{background:var(--panel);border:1px solid #1c2550;border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .card header{position:static;background:transparent;border:0;padding:16px 16px 0}
+    .card .content{padding:16px}
+    .muted{color:var(--muted)}
+    textarea,input,select,button{font:inherit;color:inherit}
+    textarea{width:100%;min-height:300px;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px;color:var(--text)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .stack{display:grid;gap:12px}
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid #26306a;background:#0f1636;border-radius:999px;font-size:12px;color:var(--muted)}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0b1130;border:1px solid #2a3574;border-bottom-width:2px;border-radius:6px;padding:2px 6px;color:#cfe2ff}
+    .panel{background:#0e1430;border:1px dashed #2a3574;border-radius:12px;padding:12px}
+    .input{width:100%;background:#0e1430;border:1px solid #243067;border-radius:12px;padding:12px}
+    .btn{background:linear-gradient(180deg,#2563eb,#1d4ed8);border:0;color:white;padding:10px 14px;border-radius:12px;cursor:pointer;transition:.15s transform, .2s filter;box-shadow:0 6px 18px rgba(37,99,235,.3)}
+    .btn.secondary{background:#0f1636;border:1px solid #2a3574;color:#cfe2ff;box-shadow:none}
+    .btn:active{transform:translateY(1px)}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .status{border-radius:12px;padding:12px}
+    .status.ok{background:rgba(49,208,97,.1);border:1px solid rgba(49,208,97,.35)}
+    .status.err{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35)}
+    .small{font-size:12px}
+    code{background:#0b1130;border:1px solid #2a3574;border-radius:8px;padding:1px 6px}
+    .footer{padding:10px 16px;border-top:1px solid #1c2550;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom-left-radius:var(--radius);border-bottom-right-radius:var(--radius)}
+    /* Modal */
+    .modal{display:none;position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.6);align-items:center;justify-content:center}
+    .modal-content{background:#121935;padding:20px;border-radius:16px;max-width:420px;text-align:center;border:1px solid #1c2550}
+    .modal-content h2{margin:4px 0 10px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>S-Expression Practice • Lesson + Validator</h1>
+  </header>
+
+  <main>
+    <!-- LEFT: Lesson text -->
+    <section class="card" id="lessonCard">
+      <header>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h2 style="margin:0;font-size:18px">Lesson</h2>
+          <div class="row">
+            <span class="pill">Tip: press <span class="kbd">Enter</span> on the right to check</span>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="stack">
+          <textarea id="lessonText" spellcheck="false" disabled></textarea>
+          <div class="row" style="justify-content:flex-end">
+            <button class="btn secondary" id="refreshLessonBtn">Refresh from server</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Problems & validator -->
+    <section class="card" id="practiceCard">
+      <header>
+        <h2 style="margin:0 0 6px 0;font-size:18px">Problems & Validator</h2>
+        <div class="muted small">Write the S-expression that matches the problem. Validation uses a CFG-based parser.</div>
+      </header>
+      <div class="content">
+        <div class="stack">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <div class="row" style="gap:16px">
+              <label class="pill"><input type="checkbox" id="naryToggle" /> Allow n-ary (≥2 operands)</label>
+              <label class="pill"><input type="checkbox" id="allowNeg" /> Allow negative integers</label>
+            </div>
+            <div class="row">
+              <button class="btn secondary" id="prevBtn">◀ Prev</button>
+              <button class="btn secondary" id="nextBtn">Next ▶</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="muted small">Problem</div>
+            <div id="problemText" style="font-size:22px;margin-top:6px"></div>
+          </div>
+
+          <label class="muted small" for="answerInput">Your answer (S-expression)</label>
+          <input id="answerInput" class="input" placeholder="e.g. (+ 5 4)" autocomplete="off" />
+
+          <div class="row" style="justify-content:flex-start;gap:10px">
+            <button class="btn" id="checkBtn">Check (Enter)</button>
+            <button class="btn secondary" id="revealBtn">Reveal answer</button>
+            <button class="btn secondary" id="shuffleBtn">Shuffle</button>
+          </div>
+
+          <div id="result" class="status" style="display:none"></div>
+
+          <details>
+            <summary class="muted">Show CFG used for validation</summary>
+            <pre id="cfgBox" style="white-space:pre-wrap"></pre>
+          </details>
+        </div>
+      </div>
+      <div class="footer small muted">
+        <div>Keyboard: <span class="kbd">Enter</span> to check • <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to reveal</div>
+        <div>Strict binary by default; toggle n-ary if you teach <code>(+ 1 2 3)</code>.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Congrats Modal -->
+  <div class="modal" id="congratsModal">
+    <div class="modal-content">
+      <h2>🎉 Congratulations!</h2>
+      <p>You solved 3 problems correctly in a row!</p>
+      <div class="row" style="justify-content:center;margin-top:12px;gap:10px">
+        <button class="btn" id="keepGoingBtn">Keep going</button>
+        <button class="btn secondary" id="resetCounterBtn">Reset counter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ====== Config ======
+  const API_BASE = "http://localhost:8000"; // FastAPI base
+  const LESSON_ID = 1;
+
+  // ====== Backend I/O ======
+  async function loadLesson(lessonId = LESSON_ID) {
+    const res = await fetch(`${API_BASE}/lessons/${lessonId}`);
+    if (!res.ok) throw new Error("Lesson not found");
+    return await res.json(); // {id,title,body_md}
+  }
+
+  function toKeyFromAnswerText(answerText) {
+    const ast = parse(answerText, { nary: false, allowNeg: false });
+    if (ast.kind !== 'call') throw new Error('Answer key is not a call');
+    const op = ast.op;
+    const args = ast.args.map(a => {
+      if (a.kind !== 'int') throw new Error('Answer key must be plain integers');
+      return a.value;
+    });
+    if (args.length !== 2) throw new Error('Expect two operands in answer key');
+    return { op, args };
+  }
+
+  async function loadProblems(lessonId = LESSON_ID) {
+    const res = await fetch(`${API_BASE}/lessons/${lessonId}/problems`);
+    if (!res.ok) throw new Error("Failed to load problems");
+    const raw = await res.json(); // [{id, lesson_id, prompt_text, answer_text}]
+    return raw.map(p => {
+      const key = toKeyFromAnswerText(p.answer_text);
+      return { id: p.id, prompt_text: p.prompt_text, answer_text: p.answer_text, op: key.op, args: key.args };
+    });
+  }
+
+  // ====== Tiny tokenizer ======
+  function tokenize(input){
+    const tokens = [];
+    let i=0;
+    const push=(type, value)=>tokens.push({type, value, pos:i});
+    while(i < input.length){
+      const ch = input[i];
+      if(/\s/.test(ch)){ i++; continue; }
+      if(ch === '(' || ch === ')'){ push(ch, ch); i++; continue; }
+      if(ch === '+' || ch === '*' ){ push('op', ch); i++; continue; }
+      if(ch === '-'){
+        push('minus', '-'); i++; continue;
+      }
+      if(/[0-9]/.test(ch)){
+        let start=i; while(i<input.length && /[0-9]/.test(input[i])) i++;
+        push('int', input.slice(start, i));
+        continue;
+      }
+      throw errorAt(i, `Unexpected character '${ch}'`);
+    }
+    return tokens;
+  }
+
+  // ====== Parser (CFG) ======
+  function parse(input, { nary=false, allowNeg=false }={}){
+    const tokens = tokenize(input);
+    let k=0; const peek=()=>tokens[k];
+    const consume=(expectType)=>{ const t=tokens[k]; if(!t || (expectType && t.type!==expectType)){ const exp=expectType||'token'; const got=t? t.type : 'EOF'; throw errorAt(t? t.pos : input.length, `Expected ${exp}, got ${got}`);} k++; return t; };
+
+    function parseExpr(){
+      const t = peek();
+      if(!t) throw errorAt(input.length, 'Unexpected end of input');
+      if(t.type==='int' || (allowNeg && t.type==='minus' && tokens[k+1] && tokens[k+1].type==='int')){
+        return parseIntLiteral();
+      }
+      if(t.type==='('){
+        consume('(');
+        const opTok = readOperator();
+        const op = opTok.value;
+        const args = [];
+        args.push(parseExpr());
+        args.push(parseExpr());
+        if(nary){ while(peek() && peek().type!==')'){ args.push(parseExpr()); } }
+        else { if(peek() && peek().type!==')'){ throw errorAt(peek().pos, 'Expected ) after two operands'); } }
+        consume(')');
+        return { kind:'call', op, args };
+      }
+      throw errorAt(t.pos, 'Expected integer or (op ...)');
+    }
+
+    function readOperator(){
+      const t = peek(); if(!t) throw errorAt(input.length, 'Expected operator');
+      if(t.type==='op'){ return consume('op'); }
+      if(t.type==='minus'){ k++; return {type:'op', value:'-'}; }
+      throw errorAt(t.pos, 'Expected operator +, -, or *');
+    }
+
+    function parseIntLiteral(){
+      let sign = 1;
+      if(peek().type==='minus'){
+        if(!allowNeg) throw errorAt(peek().pos, 'Negative numbers are not allowed');
+        if(!(tokens[k+1] && tokens[k+1].type==='int')){ throw errorAt(peek().pos, 'Expected digits after -'); }
+        sign = -1; k++;
+      }
+      const t = consume('int');
+      const s = t.value;
+      if(s.length>1 && s.startsWith('0')){ throw errorAt(t.pos, 'Leading zeros are not allowed'); }
+      return { kind:'int', value: sign * parseInt(s,10) };
+    }
+
+    const expr = parseExpr();
+    if(peek()){ throw errorAt(peek().pos, 'Extra input after valid expression'); }
+    return expr;
+  }
+
+  function errorAt(pos, message){ const err = new Error(message); err.pos = pos; return err; }
+
+  function getCfgText(nary, allowNeg){
+    return (
+`S        ::= WS? Expr WS?\n\n`+
+`Expr     ::= Int\n`+
+`           | "(" WS? Op WS Expr ` + (nary? '(WS Expr)+' : 'WS Expr') + ` WS? ")"\n\n`+
+`Op       ::= "+" | "-" | "*"\n\n`+
+`Int      ::= ` + (allowNeg? `'["-"] ("0" | NonZeroDigit {Digit})'` : '`"0" | NonZeroDigit {Digit}`') + `\n`+
+`Digit    ::= "0" | NonZeroDigit\n`+
+`NonZeroDigit ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"\n\n`+
+`WS       ::= {" " | "\t" | "\n" | "\r"}`
+    );
+  }
+
+  function validateAgainstProblem(ast, problem, nary){
+    if(ast.kind!=='call') return { ok:false, reason:'Your answer is just a number, not an S-expression.' };
+    const {op, args} = ast;
+    if(op !== problem.op) return { ok:false, reason:`Operator mismatch: expected '${problem.op}'.` };
+    if(!nary && args.length !== 2) return { ok:false, reason:'Must have exactly two operands.' };
+
+    const [a,b] = problem.args;
+    const ints = [];
+    for(const x of args){ if(x.kind!=='int'){ return { ok:false, reason:'Operands must be integers for this problem.' }; } ints.push(x.value); }
+
+    if(problem.op === '+' || problem.op === '*'){
+      const s1=[...ints].sort((x,y)=>x-y), s2=[a,b].sort((x,y)=>x-y);
+      const same = s1.length===2 && s1[0]===s2[0] && s1[1]===s2[1];
+      return same ? { ok:true } : { ok:false, reason:`Operands must be ${a} and ${b} (any order).` };
+    } else {
+      const same = ints.length===2 && ints[0]===a && ints[1]===b;
+      return same ? { ok:true } : { ok:false, reason:`Operands must be ${a} then ${b}.` };
+    }
+  }
+
+  // ====== UI wiring ======
+  const els = {
+    lessonText: document.getElementById('lessonText'),
+    refreshLessonBtn: document.getElementById('refreshLessonBtn'),
+    problemText: document.getElementById('problemText'),
+    answerInput: document.getElementById('answerInput'),
+    result: document.getElementById('result'),
+    naryToggle: document.getElementById('naryToggle'),
+    allowNeg: document.getElementById('allowNeg'),
+    cfgBox: document.getElementById('cfgBox'),
+    checkBtn: document.getElementById('checkBtn'),
+    revealBtn: document.getElementById('revealBtn'),
+    shuffleBtn: document.getElementById('shuffleBtn'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    congratsModal: document.getElementById('congratsModal'),
+    keepGoingBtn: document.getElementById('keepGoingBtn'),
+    resetCounterBtn: document.getElementById('resetCounterBtn'),
+  };
+
+  let problems = [];
+  let idx = 0;
+  let successCount = 0;
+
+  function hideResult(){ els.result.style.display='none'; }
+  function showOk(msg){ const el=els.result; el.className='status ok'; el.style.display='block'; el.textContent = '✅ ' + msg; }
+  function showErr(msg){ const el=els.result; el.className='status err'; el.style.display='block'; el.textContent = '❌ ' + msg; }
+
+  function showProblem(){
+    if(!problems.length){ els.problemText.textContent = 'No problems found for this lesson.'; return; }
+    const p = problems[idx];
+    els.problemText.textContent = p.prompt_text;
+    els.answerInput.value = '';
+    els.answerInput.focus();
+    hideResult();
+  }
+
+  function showCFG(){ els.cfgBox.textContent = getCfgText(els.naryToggle.checked, els.allowNeg.checked); }
+
+  function openCongrats(){ els.congratsModal.style.display='flex'; }
+  function closeCongrats(){ els.congratsModal.style.display='none'; }
+
+  function check(){
+    const input = els.answerInput.value.trim();
+    if(!input){ showErr('Type an S-expression, e.g. ( + 5 4 )'); return; }
+    try{
+      const ast = parse(input, { nary: els.naryToggle.checked, allowNeg: els.allowNeg.checked });
+      const res = validateAgainstProblem(ast, problems[idx], els.naryToggle.checked);
+      if(res.ok){
+        showOk('Correct!');
+        successCount++;
+        if(successCount === 3){ openCongrats(); }
+      } else {
+        showErr('Valid S-expression, but not a correct answer: ' + res.reason);
+      }
+    } catch(e){
+      const caret = ' '.repeat(e.pos||0) + '^';
+      showErr((e.message||'Parse error') + `\n\nat position ${e.pos}\n` + caret);
+    }
+  }
+
+  function reveal(){ showOk('Answer: ' + (problems[idx]?.answer_text || 'N/A')); }
+
+  function shuffle(){
+    for(let i=problems.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [problems[i],problems[j]]=[problems[j],problems[i]]; }
+    idx=0; showProblem();
+  }
+
+  // ====== Events ======
+  els.checkBtn.addEventListener('click', check);
+  els.revealBtn.addEventListener('click', reveal);
+  els.shuffleBtn.addEventListener('click', shuffle);
+  els.prevBtn.addEventListener('click', ()=>{ if(!problems.length) return; idx=(idx-1+problems.length)%problems.length; showProblem(); });
+  els.nextBtn.addEventListener('click', ()=>{ if(!problems.length) return; idx=(idx+1)%problems.length; showProblem(); });
+  els.naryToggle.addEventListener('change', showCFG);
+  els.allowNeg.addEventListener('change', showCFG);
+  els.refreshLessonBtn.addEventListener('click', async()=>{
+    const lesson = await loadLesson(LESSON_ID); els.lessonText.value = lesson.body_md;
+  });
+
+  // Modal buttons
+  els.keepGoingBtn.addEventListener('click', ()=>{ closeCongrats(); });
+  els.resetCounterBtn.addEventListener('click', ()=>{ successCount = 0; closeCongrats(); });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter' && !e.shiftKey && !e.ctrlKey){ if(document.activeElement===els.answerInput || document.activeElement===document.body){ e.preventDefault(); check(); } }
+    if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); reveal(); }
+  });
+
+  // ====== Bootstrap ======
+  (async ()=>{
+    try{
+      const lesson = await loadLesson(LESSON_ID); els.lessonText.value = lesson.body_md;
+      problems = await loadProblems(LESSON_ID);
+    } catch(err){ console.error(err); }
+    showProblem();
+    showCFG();
+  })();
+  </script>
+</body>
+</html>
