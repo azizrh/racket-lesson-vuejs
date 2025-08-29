@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from psycopg_pool import AsyncConnectionPool
+import psycopg
 import httpx
 import json
 from datetime import datetime, timedelta, timezone
@@ -48,15 +49,26 @@ class ValidateReq(BaseModel):
     problem_id: int
     submission: str
 
+# class AttemptIn(BaseModel):
+#     username: Optional[str] = None      # preferred: login by username
+#     user_id: Optional[int] = None       # kept for backward compat
+#     problem_id: int
+#     submitted_text: str
+#     is_correct: bool
+#     stage: Optional[str] = None
+#     error_reason: Optional[str] = None
+#     details: Optional[Dict[str, Any]] = None
+
 class AttemptIn(BaseModel):
-    username: Optional[str] = None      # preferred: login by username
-    user_id: Optional[int] = None       # kept for backward compat
+    username: Optional[str] = None
+    user_id: Optional[int] = None
     problem_id: int
     submitted_text: str
     is_correct: bool
     stage: Optional[str] = None
     error_reason: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Any] = None   # <- allow any JSON, not just dict
+
 
 class UserCreate(BaseModel):
     username: str
@@ -158,7 +170,7 @@ async def on_startup():
       lesson_id BIGINT NOT NULL REFERENCES lesson(id) ON DELETE CASCADE,
       box       INT NOT NULL DEFAULT 1,
       due_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      last_answered_at TIMESTAMPTZ NULL,
+      updated_at TIMESTAMPTZ NULL,
       PRIMARY KEY (user_id, lesson_id)
     );
     CREATE INDEX IF NOT EXISTS idx_user_lesson_review_due
@@ -350,7 +362,7 @@ async def _bump_review_after_attempt(con, user_id: Optional[int], problem_id: in
 
         # Ensure row exists
         await cur.execute("""
-            INSERT INTO user_lesson_review (user_id, lesson_id, box, due_at, last_answered_at)
+            INSERT INTO user_lesson_review (user_id, lesson_id, box, due_at, updated_at)
             VALUES (%s, %s, 1, NOW(), NOW())
             ON CONFLICT (user_id, lesson_id) DO NOTHING
         """, (user_id, lesson_id))
@@ -373,11 +385,41 @@ async def _bump_review_after_attempt(con, user_id: Optional[int], problem_id: in
             UPDATE user_lesson_review
             SET box = %s,
                 due_at = %s,
-                last_answered_at = NOW()
+                updated_at = NOW()
             WHERE user_id = %s AND lesson_id = %s
         """, (next_box, due_at, user_id, lesson_id))
 
-# --- attempts ---
+# # --- attempts ---
+# @app.post("/attempts")
+# async def create_attempt(a: AttemptIn):
+#     # Resolve user_id if username provided
+#     resolved_user_id = a.user_id
+#     if a.username and not resolved_user_id:
+#         async with pool.connection() as con:
+#             async with con.cursor() as cur:
+#                 await cur.execute('SELECT user_id FROM public."user" WHERE username = %s', (a.username,))
+#                 r = await cur.fetchone()
+#                 if not r:
+#                     raise HTTPException(404, "username not found")
+#                 resolved_user_id = r[0]
+
+#     async with pool.connection() as con:
+#         async with con.cursor() as cur:
+#             q = """INSERT INTO attempt (user_id, problem_id, submitted_text, is_correct, stage, error_reason, details_json)
+#                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+#                    RETURNING id, created_at"""
+#             await cur.execute(q, (
+#                 resolved_user_id, a.problem_id, a.submitted_text, a.is_correct,
+#                 a.stage, a.error_reason, json.dumps(a.details) if a.details is not None else None
+#             ))
+#             row = await cur.fetchone()
+
+#         # SR bump (same transaction)
+#         await _bump_review_after_attempt(con, resolved_user_id, a.problem_id, a.is_correct)
+
+#         await con.commit()
+#     return {"id": row[0], "created_at": row[1]}
+
 @app.post("/attempts")
 async def create_attempt(a: AttemptIn):
     # Resolve user_id if username provided
@@ -392,21 +434,38 @@ async def create_attempt(a: AttemptIn):
                 resolved_user_id = r[0]
 
     async with pool.connection() as con:
-        async with con.cursor() as cur:
-            q = """INSERT INTO attempt (user_id, problem_id, submitted_text, is_correct, stage, error_reason, details_json)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)
-                   RETURNING id, created_at"""
-            await cur.execute(q, (
-                resolved_user_id, a.problem_id, a.submitted_text, a.is_correct,
-                a.stage, a.error_reason, json.dumps(a.details) if a.details is not None else None
-            ))
-            row = await cur.fetchone()
+        try:
+            async with con.cursor() as cur:
+                q = """INSERT INTO attempt
+                         (user_id, problem_id, submitted_text, is_correct, stage, error_reason, details_json)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       RETURNING id, created_at"""
+                await cur.execute(q, (
+                    resolved_user_id,
+                    a.problem_id,
+                    a.submitted_text,
+                    a.is_correct,
+                    a.stage,
+                    a.error_reason,
+                    json.dumps(a.details) if a.details is not None else None,
+                ))
+                row = await cur.fetchone()
 
-        # SR bump (same transaction)
-        await _bump_review_after_attempt(con, resolved_user_id, a.problem_id, a.is_correct)
+            # SR bump (same txn)
+            await _bump_review_after_attempt(con, resolved_user_id, a.problem_id, a.is_correct)
 
-        await con.commit()
-    return {"id": row[0], "created_at": row[1]}
+            await con.commit()
+            return {"id": row[0], "created_at": row[1]}
+
+        except psycopg.errors.ForeignKeyViolation:
+            await con.rollback()
+            # problem_id doesn't exist (FK to problem.id)
+            raise HTTPException(404, "problem_id not found")
+        except Exception as e:
+            await con.rollback()
+            # show a helpful message during dev
+            raise HTTPException(400, f"attempt insert failed: {e}")
+
 
 # --- users ---
 @app.post("/users", response_model=UserOut)

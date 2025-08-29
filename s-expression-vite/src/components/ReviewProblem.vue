@@ -1,5 +1,5 @@
 <template>
-  <!-- Backdrop -->
+  <!-- Backdrop wrapper (centers modal) -->
   <div
     v-if="show"
     class="fixed inset-0 z-50 flex items-center justify-center"
@@ -8,13 +8,14 @@
     aria-labelledby="review-problem-title"
     @click.self="close"
   >
+    <!-- Blurred / dimmed backdrop -->
     <div class="modal-backdrop"></div>
 
     <!-- Dialog -->
     <section class="card modal-panel" id="practiceCard" @click.stop>
       <header class="flex items-center justify-between">
         <h2 id="review-problem-title" class="m-0 mb-1 text-[18px] font-semibold">
-          Problems &amp; Validator
+          Review your understanding for lesson {{ (problem.lesson_id) }}
         </h2>
         <button class="btn secondary" @click="close">Close ✕</button>
       </header>
@@ -143,19 +144,32 @@ export default {
 </script>
 
 <style scoped>
-/* Simple modal visuals reusing your design language */
+/* Center both axes */
+.modal-wrap {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;   /* keep space from edges on mobile */
+  z-index: 50;
+}
+
+/* Keep your existing styles */
 .modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,.5);
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none; /* so @click.self works on wrapper */
 }
 
 .modal-panel {
-  position: relative;
-  z-index: 1;
+    margin-top: 15%;
   width: min(720px, 92vw);
   max-height: 85vh;
   overflow: auto;
+  border-radius: 14px;
 }
 
 /* Spinner (small) */

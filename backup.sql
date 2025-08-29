@@ -265,6 +265,23 @@ CREATE TABLE public."user" (
 ALTER TABLE public."user" OWNER TO postgres;
 
 --
+-- Name: user_lesson_review; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.user_lesson_review (
+    user_id bigint NOT NULL,
+    lesson_id bigint NOT NULL,
+    box smallint DEFAULT 1 NOT NULL,
+    due_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_attempt_id bigint,
+    last_result boolean,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.user_lesson_review OWNER TO postgres;
+
+--
 -- Name: user_user_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -321,6 +338,24 @@ COPY public.attempt (id, problem_id, submitted_text, is_correct, stage, error_re
 37	1	(+ 5 4)	t	eval	\N	{"tests": 1, "value": 9, "passed": 1, "results": [{"expr": "(+ 5 4)", "pass": true, "type": "expr", "index": 0, "actual": 9, "exprValue": 9}]}	2025-08-26 04:35:38.443412+00	4
 38	2	(- 22 9)	t	eval	\N	{"tests": 1, "value": 13, "passed": 1, "results": [{"expr": "(- 22 9)", "pass": true, "type": "expr", "index": 0, "actual": 13, "exprValue": 13}]}	2025-08-26 04:36:07.372047+00	4
 39	3	(* 2 24)	t	eval	\N	{"tests": 1, "value": 48, "passed": 1, "results": [{"expr": "(* 2 24)", "pass": true, "type": "expr", "index": 0, "actual": 48, "exprValue": 48}]}	2025-08-26 04:36:14.157703+00	4
+40	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-27 03:39:50.615398+00	4
+41	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-27 03:39:50.632725+00	4
+42	43	(- 2 10)	t	eval	\N	{"tests": 1, "value": -8, "passed": 0, "results": [{"expr": "(- 10 2)", "pass": false, "type": "expr", "index": 0, "actual": -8, "exprValue": 8}]}	2025-08-27 03:40:07.053244+00	4
+43	43	(- 2 10)	t	eval	\N	{"tests": 1, "value": -8, "passed": 0, "results": [{"expr": "(- 10 2)", "pass": false, "type": "expr", "index": 0, "actual": -8, "exprValue": 8}]}	2025-08-27 03:40:07.062731+00	4
+44	43	(- 2 10)	t	eval	\N	{"tests": 1, "value": -8, "passed": 0, "results": [{"expr": "(- 10 2)", "pass": false, "type": "expr", "index": 0, "actual": -8, "exprValue": 8}]}	2025-08-27 03:40:08.99683+00	4
+45	43	(- 2 10)	t	eval	\N	{"tests": 1, "value": -8, "passed": 0, "results": [{"expr": "(- 10 2)", "pass": false, "type": "expr", "index": 0, "actual": -8, "exprValue": 8}]}	2025-08-27 03:40:09.003419+00	4
+46	1	(+ 5 4)	t	eval	\N	{"tests": 1, "value": 9, "passed": 1, "results": [{"expr": "(+ 5 4)", "pass": true, "type": "expr", "index": 0, "actual": 9, "exprValue": 9}]}	2025-08-28 06:14:34.831305+00	5
+47	2	asdasd	f	eval	submission evaluation error	{"message": "asdasd: undefined;\\n cannot reference an identifier before its definition\\n  in module: 'program", "submission": "asdasd"}	2025-08-28 06:15:48.266737+00	5
+48	1	(+ 5 4)	t	eval	\N	{"tests": 1, "value": 9, "passed": 1, "results": [{"expr": "(+ 5 4)", "pass": true, "type": "expr", "index": 0, "actual": 9, "exprValue": 9}]}	2025-08-28 06:20:28.963391+00	5
+49	2	(- 22 9)	t	eval	\N	{"tests": 1, "value": 13, "passed": 1, "results": [{"expr": "(- 22 9)", "pass": true, "type": "expr", "index": 0, "actual": 13, "exprValue": 13}]}	2025-08-28 06:23:43.235158+00	5
+50	3	(* 2 24)	t	eval	\N	{"tests": 1, "value": 48, "passed": 1, "results": [{"expr": "(* 2 24)", "pass": true, "type": "expr", "index": 0, "actual": 48, "exprValue": 48}]}	2025-08-28 06:24:10.520105+00	5
+51	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-28 06:25:10.027389+00	5
+52	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-28 06:25:32.787996+00	5
+53	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-28 06:25:49.211133+00	5
+54	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-28 06:58:04.863397+00	5
+64	1	(+ 1 1)	t	review	\N	{"expected": "(+ 1 1)"}	2025-08-29 07:08:02.607189+00	5
+65	46	(- 25 7)	t	review	\N	{"tests": 1, "value": 18, "passed": 1, "results": [{"expr": "(- 25 7)", "pass": true, "type": "expr", "index": 0, "actual": 18, "exprValue": 18}]}	2025-08-29 07:08:24.341088+00	5
+66	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 07:31:26.273752+00	5
 \.
 
 
@@ -470,7 +505,18 @@ COPY public.problem (id, lesson_id, prompt_text, answer_text, created_at, valida
 --
 
 COPY public."user" (user_id, active_lesson, lessons, created_at, username) FROM stdin;
-4	2	{1,2}	2025-08-26 04:32:37.857613+00	aziz
+4	3	{1,2,3}	2025-08-26 04:32:37.857613+00	aziz
+5	2	{1,2}	2025-08-27 05:54:08.885089+00	tester
+\.
+
+
+--
+-- Data for Name: user_lesson_review; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.user_lesson_review (user_id, lesson_id, box, due_at, last_attempt_id, last_result, updated_at) FROM stdin;
+5	1	2	2025-08-29 15:08:02.609885+00	\N	\N	2025-08-29 07:08:02.607189+00
+5	2	3	2025-08-30 07:31:26.276929+00	\N	\N	2025-08-29 07:31:26.273752+00
 \.
 
 
@@ -478,7 +524,7 @@ COPY public."user" (user_id, active_lesson, lessons, created_at, username) FROM 
 -- Name: attempt_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.attempt_id_seq', 39, true);
+SELECT pg_catalog.setval('public.attempt_id_seq', 66, true);
 
 
 --
@@ -499,7 +545,7 @@ SELECT pg_catalog.setval('public.problem_id_seq', 120, true);
 -- Name: user_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.user_user_id_seq', 4, true);
+SELECT pg_catalog.setval('public.user_user_id_seq', 5, true);
 
 
 --
@@ -532,6 +578,14 @@ ALTER TABLE ONLY public.lesson
 
 ALTER TABLE ONLY public.problem
     ADD CONSTRAINT problem_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_lesson_review user_lesson_review_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_lesson_review
+    ADD CONSTRAINT user_lesson_review_pkey PRIMARY KEY (user_id, lesson_id);
 
 
 --
@@ -579,6 +633,13 @@ CREATE INDEX idx_user_active_lesson ON public."user" USING btree (active_lesson)
 
 
 --
+-- Name: idx_user_lesson_review_due; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_user_lesson_review_due ON public.user_lesson_review USING btree (user_id, due_at);
+
+
+--
 -- Name: idx_user_lessons_gin; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -615,6 +676,30 @@ ALTER TABLE ONLY public.problem
 
 ALTER TABLE ONLY public."user"
     ADD CONSTRAINT user_active_lesson_fkey FOREIGN KEY (active_lesson) REFERENCES public.lesson(id) ON DELETE SET NULL;
+
+
+--
+-- Name: user_lesson_review user_lesson_review_last_attempt_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_lesson_review
+    ADD CONSTRAINT user_lesson_review_last_attempt_id_fkey FOREIGN KEY (last_attempt_id) REFERENCES public.attempt(id) ON DELETE SET NULL;
+
+
+--
+-- Name: user_lesson_review user_lesson_review_lesson_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_lesson_review
+    ADD CONSTRAINT user_lesson_review_lesson_id_fkey FOREIGN KEY (lesson_id) REFERENCES public.lesson(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_lesson_review user_lesson_review_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_lesson_review
+    ADD CONSTRAINT user_lesson_review_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(user_id) ON DELETE CASCADE;
 
 
 --
