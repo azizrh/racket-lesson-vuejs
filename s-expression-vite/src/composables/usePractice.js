@@ -91,18 +91,33 @@ export function usePractice(api, auth, lessons) {
       setResult(false, "Type your answer first")
       return
     }
+
+    // if (input!=answer.answer_text){
+    //     let msg = res.error || "Incorrect."
+    //     if (res.details && res.details.failures) {
+    //       const f = res.details.failures[0]
+    //       if (f && f.expr) msg += `\nFailed test: ${f.expr}`
+    //     }
+    //     setResult(false, msg)
+    //     return
+    // }
     
     try {
+      
       const p = currentProblem.value
+      const exact_answer = currentProblem.value.answer_text
+      
       if (!p) {
         setResult(false, "No problem selected")
         return
       }
       
+      
       const res = await api.backendValidate(p.id, input)
       await api.recordAttempt(auth.username.value, p.id, input, res)
       
-      if (res.ok) {
+      console.log(input,exact_answer,input==exact_answer)
+      if (res.ok && input==exact_answer) {
         const stage = res.stage ? ` (${res.stage})` : ""
         setResult(true, "Correct!" + stage)
         successCount.value++
