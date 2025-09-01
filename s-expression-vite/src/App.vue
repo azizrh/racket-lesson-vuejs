@@ -22,7 +22,7 @@
       </button>
 
       <!-- Debug Info -->
-      <div
+      <!-- <div
         style="
           background: #000000;
           padding: 10px;
@@ -37,7 +37,7 @@
         currentView: {{ currentView }}<br />
         username: {{ username }}<br />
         currentProblem: {{ currentProblem }}<br />
-      </div>
+      </div> -->
 
       <HomePage
         :lessons="lessons"
@@ -59,8 +59,10 @@
         :resultVisible="reviewResultVisible"
         :resultOk="reviewResultOk"
         :resultMessage="reviewResultMessage"
+        :lessons="lessons"
         @check="handleReviewCheck"
         @reveal="handleReviewReveal"
+        @redirect-to-lesson="handleLessonRedirect"
       />
     </div>
 
@@ -112,7 +114,7 @@
 </template>
 
 <script>
-import { watch } from 'vue' // 🔹 NEW
+import { watch } from "vue"; // 🔹 NEW
 import { useAuth } from "./composables/useAuth";
 import { useLessons } from "./composables/useLessons";
 import { usePractice } from "./composables/usePractice";
@@ -153,6 +155,53 @@ export default {
     const provide = {
       hasAccessToLesson: lessons.hasAccessToLesson,
     };
+    const handleLessonRedirect = async (lessonId) => {
+      console.log("handleLessonRedirect called with lessonId:", lessonId);
+
+      try {
+        // First, switch to practice view
+        lessons.currentView.value = "practice";
+
+        // Find the lesson index
+        const lessonIndex = lessons.lessons.value.findIndex(
+          (l) => l.id === lessonId
+        );
+        console.log("Found lesson at index:", lessonIndex);
+
+        if (lessonIndex === -1) {
+          throw new Error("Lesson not found");
+        }
+
+        // Navigate to the lesson
+        await lessons.setLessonByIndex(lessonIndex);
+
+        // Load problems for practice
+        await practice.loadProblemsForLesson(lessonId);
+
+        // Show success message
+        practice.setResult(
+          true,
+          `📚 Switched to "${lessons.currentLesson.value?.title}" - review the lesson content to better understand this topic!`
+        );
+
+        // Scroll to lesson content after DOM update
+        setTimeout(() => {
+          const lessonElement = document.getElementById("lessonCard");
+          if (lessonElement) {
+            lessonElement.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }
+        }, 100);
+      } catch (error) {
+        console.error("Failed to redirect to lesson:", error);
+        practice.setResult(
+          false,
+          "Failed to load the lesson. Please try again."
+        );
+      }
+    };
 
     // Initialize app
     const initialize = async () => {
@@ -190,7 +239,7 @@ export default {
     watch(
       () => lessons.currentView.value,
       async (v) => {
-        if (v === 'practice' && !practice.currentProblem.value) {
+        if (v === "practice" && !practice.currentProblem.value) {
           const id =
             lessons.selectedLessonId?.value ??
             auth.user.value?.active_lesson ??
@@ -219,6 +268,8 @@ export default {
 
       // Login
       ...loginHandler,
+
+      handleLessonRedirect,
 
       // Custom handlers
       setLessonByIndex: async (newIdx) => {

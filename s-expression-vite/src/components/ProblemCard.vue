@@ -5,7 +5,7 @@
         Problems &amp; Validator
       </h2>
     </header>
-    <div
+    <!-- <div
       style="
         background: #ffff1212;
         padding: 10px;
@@ -17,7 +17,7 @@
       <strong>Debug Info:</strong><br />
       currentProblem: {{ currentProblem }}<br />
       answer: {{ answer }}<br />
-    </div>
+    </div> -->
     <div class="content">
       <div class="grid gap-3">
         <div class="panel">

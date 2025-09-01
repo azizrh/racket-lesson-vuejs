@@ -242,10 +242,10 @@ export default {
 /* Hero Section */
 .hero {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 10px;
   background: linear-gradient(135deg, hsl(0 0% 8%) 0%, hsl(0 0% 12%) 100%);
   border-radius: var(--radius);
-  margin-bottom: 40px;
+  margin-bottom: 20px;
   border: 1px solid hsl(var(--border));
 }
 
