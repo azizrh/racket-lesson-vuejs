@@ -356,6 +356,24 @@ COPY public.attempt (id, problem_id, submitted_text, is_correct, stage, error_re
 64	1	(+ 1 1)	t	review	\N	{"expected": "(+ 1 1)"}	2025-08-29 07:08:02.607189+00	5
 65	46	(- 25 7)	t	review	\N	{"tests": 1, "value": 18, "passed": 1, "results": [{"expr": "(- 25 7)", "pass": true, "type": "expr", "index": 0, "actual": 18, "exprValue": 18}]}	2025-08-29 07:08:24.341088+00	5
 66	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 07:31:26.273752+00	5
+67	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 13:50:49.353352+00	5
+68	41	(+ 7 3 )	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 13:54:40.275432+00	5
+69	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 13:56:54.923187+00	5
+70	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 13:57:38.441238+00	5
+71	41	(+ 7 3    )	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 13:59:52.487557+00	5
+72	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 14:01:15.370777+00	5
+73	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 14:03:00.571124+00	5
+74	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 14:03:29.973711+00	5
+75	41	(+ 7 3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 14:04:42.759543+00	5
+76	42	(* 9 4 )	t	eval	\N	{"tests": 1, "value": 36, "passed": 1, "results": [{"expr": "(* 9 4)", "pass": true, "type": "expr", "index": 0, "actual": 36, "exprValue": 36}]}	2025-08-29 14:05:31.616286+00	5
+77	42	(* 9 4)	t	eval	\N	{"tests": 1, "value": 36, "passed": 1, "results": [{"expr": "(* 9 4)", "pass": true, "type": "expr", "index": 0, "actual": 36, "exprValue": 36}]}	2025-08-29 14:05:35.811247+00	5
+78	41	(+ 7  3)	t	eval	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-08-29 14:32:53.451998+00	5
+79	42	(* 9 4)	t	eval	\N	{"tests": 1, "value": 36, "passed": 1, "results": [{"expr": "(* 9 4)", "pass": true, "type": "expr", "index": 0, "actual": 36, "exprValue": 36}]}	2025-08-29 14:33:18.286984+00	5
+80	32	(- (+ 6 6) 4)	f	review	Backend error (400): {"detail":"racket runner error: "}	\N	2025-09-01 01:41:46.643566+00	5
+81	32	(- (+ 6 6) 4)	t	review	\N	{"tests": 1, "value": 8, "passed": 1, "results": [{"expr": "(- (+ 6 6) 4)", "pass": true, "type": "expr", "index": 0, "actual": 8, "exprValue": 8}]}	2025-09-01 01:41:51.519157+00	5
+82	41	(+ 7 3)	f	review	Backend error (400): {"detail":"racket runner error: "}	\N	2025-09-01 02:02:38.321371+00	5
+83	41	(+ 7 3)	t	review	\N	{"tests": 1, "value": 10, "passed": 1, "results": [{"expr": "(+ 7 3)", "pass": true, "type": "expr", "index": 0, "actual": 10, "exprValue": 10}]}	2025-09-01 02:02:40.155883+00	5
+84	3	(* 2 24)	t	review	\N	{"tests": 1, "value": 48, "passed": 1, "results": [{"expr": "(* 2 24)", "pass": true, "type": "expr", "index": 0, "actual": 48, "exprValue": 48}]}	2025-09-01 02:03:13.923598+00	5
 \.
 
 
@@ -515,8 +533,8 @@ COPY public."user" (user_id, active_lesson, lessons, created_at, username) FROM 
 --
 
 COPY public.user_lesson_review (user_id, lesson_id, box, due_at, last_attempt_id, last_result, updated_at) FROM stdin;
-5	1	2	2025-08-29 15:08:02.609885+00	\N	\N	2025-08-29 07:08:02.607189+00
-5	2	3	2025-08-30 07:31:26.276929+00	\N	\N	2025-08-29 07:31:26.273752+00
+5	2	2	2025-09-01 10:02:40.160659+00	\N	\N	2025-09-01 02:02:40.155883+00
+5	1	3	2025-09-02 02:03:13.927398+00	\N	\N	2025-09-01 02:03:13.923598+00
 \.
 
 
@@ -524,7 +542,7 @@ COPY public.user_lesson_review (user_id, lesson_id, box, due_at, last_attempt_id
 -- Name: attempt_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.attempt_id_seq', 66, true);
+SELECT pg_catalog.setval('public.attempt_id_seq', 84, true);
 
 
 --
