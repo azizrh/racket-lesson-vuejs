@@ -199,8 +199,10 @@ export function useReview(api, auth, lessons) {
     reviewBtnLoading.value = true
     try {
       const next = await api.fetchNextReviewByUsername(auth.username.value)
+      console.log("masuk trigger review now 'next'",next)
       const fallback = auth.user.value?.active_lesson ?? lessons.lessons.value[0]?.id ?? null
       const lessonId = next?.lesson_id ?? fallback
+      console.log(next?.lesson_id)
       if (!lessonId) {
         throw new Error("No lessons available to review.")
       }

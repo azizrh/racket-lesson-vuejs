@@ -751,7 +751,7 @@ async def next_review_by_username(username: str):
               SELECT ulr.lesson_id, ulr.due_at, ulr.box
               FROM user_lesson_review ulr
               WHERE ulr.user_id = %s
-              ORDER BY ulr.due_at ASC
+              ORDER BY ulr.box ASC ,ulr.due_at ASC
               LIMIT 1
             """, (user_id,))
             row = await cur.fetchone()

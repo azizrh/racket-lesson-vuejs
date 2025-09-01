@@ -158,6 +158,7 @@ export function usePractice(api, auth, lessons) {
     const confirmReveal = async () => {
         showRevealConfirm.value = false
         const p = currentProblem.value
+        console.log("masuk confirm reveal",p)
         const ans = p?.answer_text || "N/A"
         if (p) {
             revealedById.value[p.id] = true
