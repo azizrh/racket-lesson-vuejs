@@ -21,6 +21,8 @@
         <span v-else>Test Review Modal</span>
       </button>
 
+      <RacketRepl/>
+
       <!-- Debug Info -->
       <!-- <div
         style="
@@ -114,6 +116,8 @@
 </template>
 
 <script>
+
+
 import { watch } from "vue"; // 🔹 NEW
 import { useAuth } from "./composables/useAuth";
 import { useLessons } from "./composables/useLessons";
@@ -129,6 +133,7 @@ import RevealModal from "./components/RevealModal.vue";
 import LoginModal from "./components/LoginModal.vue";
 import HomePage from "./components/HomePage.vue";
 import ReviewProblem from "./components/ReviewProblem.vue";
+import RacketRepl from "./components/RacketRepl.vue";
 
 export default {
   name: "App",
@@ -140,6 +145,7 @@ export default {
     LoginModal,
     HomePage,
     ReviewProblem,
+    RacketRepl,
   },
 
   setup() {
