@@ -8,8 +8,8 @@
         </span>
       </div>
       <div class="repl__actions">
-        <button class="btn primary" @click="run">Run ⏵</button>
-        <button class="btn secondary" @click="clearOut">Clear Output</button>
+        <button class="btn primary" @click="runEditor">Run Editor</button>
+        <button class="btn secondary" @click="clearRepl">Clear REPL</button>
         <button class="btn secondary" @click="loadSample">Load Sample</button>
         <button class="btn secondary" title="Reset VM" @click="reset">
           Reset VM
@@ -18,88 +18,196 @@
     </header>
 
     <div class="content repl__grid">
-      <!-- Editor Pane -->
+      <!-- Interactive REPL Pane -->
       <section class="repl__pane">
         <div class="repl__paneHeader">
-          <strong class="small muted">Program</strong>
+          <strong class="small muted">Interactive REPL</strong>
+          <span class="small muted">Press Enter to evaluate</span>
+        </div>
+
+        <div class="repl-container" ref="replContainerEl">
+          <div ref="replOutput" class="repl-output">
+            <div v-if="replHistory.length === 0" class="welcome">
+              Welcome to Racket REPL! Type expressions below.
+            </div>
+            <div
+              v-for="(item, index) in replHistory"
+              :key="index"
+              class="repl-line"
+            >
+              <div v-if="item.type === 'input'" class="input-line">
+                <span class="prompt">&gt;</span> {{ item.content }}
+              </div>
+              <div v-else-if="item.type === 'result'" class="result">
+                {{ item.content }}
+              </div>
+              <div v-else-if="item.type === 'error'" class="error">
+                {{ item.content }}
+              </div>
+              <div v-else-if="item.type === 'info'" class="info">
+                {{ item.content }}
+              </div>
+            </div>
+          </div>
+
+          <div class="repl-input-container">
+            <span class="prompt">&gt;</span>
+            <input
+              ref="replInput"
+              v-model="currentInput"
+              class="repl-input"
+              placeholder="Type expression and press Enter..."
+              @keydown="onReplKeydown"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- Multi-line Editor Pane -->
+      <section class="repl__pane">
+        <div class="repl__paneHeader">
+          <strong class="small muted">Multi-line Editor</strong>
           <span class="small muted">
-            Tip: <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span> +
-            <span class="kbd">Enter</span>
+            <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span> +
+            <span class="kbd">Enter</span> to run
           </span>
         </div>
         <textarea
           v-model="code"
+          ref="editorEl"
           class="input editor"
           spellcheck="false"
-          @keydown="onKeydown"
+          @keydown="onEditorKeydown"
           aria-label="Scheme program editor"
         />
-      </section>
-
-      <!-- Console Pane -->
-      <section class="repl__pane">
-        <div class="repl__paneHeader">
-          <strong class="small muted">Output</strong>
-          <span class="small muted">{{ mode === "worker" ? "Worker" : "Main thread" }}</span>
-        </div>
-        <pre ref="outEl" class="console" aria-live="polite" />
       </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 
-/**
- * Set USE_WORKER = false to run on the main thread (CSP/SES-friendly).
- * To enable worker mode, set it true and place biwascheme-0.8.0-min.js at:
- * src/assets/biwa/biwascheme-0.8.0-min.js
- */
 const USE_WORKER = false;
-
 const LS_KEY = "racket-repl-code";
-const starter = `(displayln "hello, racket-ish repl!")
-(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))
-(displayln "fact 6 = " (fact 6))
-(displayln (map (lambda (x) (* x x)) (range 1 10)))`;
+const LS_HISTORY_KEY = "racket-repl-history";
+
+const starter = `(define (factorial n)
+  (if (<= n 1)
+      1
+      (* n (factorial (- n 1)))))
+
+(factorial 5)
+
+(define (fibonacci n)
+  (if (<= n 1)
+      n
+      (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
+
+(map fibonacci (range 0 8))`;
 
 const code = ref(localStorage.getItem(LS_KEY) ?? starter);
-const outEl = ref(null);
+const currentInput = ref("");
+const replHistory = ref([]);
+const commandHistory = ref(
+  JSON.parse(localStorage.getItem(LS_HISTORY_KEY) ?? "[]")
+);
+const historyIndex = ref(-1);
+
+const replOutput = ref(null);
+const replInput = ref(null);
+
+/* NEW: refs for syncing heights */
+const editorEl = ref(null);
+const replContainerEl = ref(null);
+let resizeObserver = null;
 
 let worker = null;
 let interp = null;
-const mode = ref("idle");   // 'idle' | 'worker' | 'main'
-const status = ref("idle"); // 'idle' | 'ready' | 'reset' | 'error'
+const mode = ref("idle");
+const status = ref("idle");
 
-const log = (s, kind = "line") => {
-  if (!outEl.value) return;
-  const prefix = kind === "error" ? "❌ " : kind === "info" ? "ℹ️ " : "";
-  outEl.value.textContent += prefix + s + "\n";
-  outEl.value.scrollTop = outEl.value.scrollHeight;
+const addToRepl = (type, content) => {
+  replHistory.value.push({ type, content, timestamp: Date.now() });
+  nextTick(() => {
+    if (replOutput.value) {
+      replOutput.value.scrollTop = replOutput.value.scrollHeight;
+    }
+  });
 };
-const clearOut = () => {
-  if (outEl.value) outEl.value.textContent = "";
+
+const clearRepl = () => {
+  replHistory.value = [];
+  addToRepl("info", "REPL cleared");
 };
 
-const statusText = computed(() => ({
-  idle: "Idle",
-  ready: "Ready",
-  reset: "VM reset",
-  error: "Error"
-}[status.value] || "Idle"));
+const statusText = computed(
+  () =>
+    ({
+      idle: "Idle",
+      ready: "Ready",
+      reset: "VM reset",
+      error: "Error",
+    }[status.value] || "Idle")
+);
 
-const statusClass = computed(() => ({
-  idle: "status--idle",
-  ready: "status--ok",
-  reset: "status--ok",
-  error: "status--err"
-}[status.value] || "status--idle"));
+const statusClass = computed(
+  () =>
+    ({
+      idle: "status--idle",
+      ready: "status--ok",
+      reset: "status--ok",
+      error: "status--err",
+    }[status.value] || "status--idle")
+);
 
-const onKeydown = (e) => {
+const saveHistory = () => {
+  localStorage.setItem(
+    LS_HISTORY_KEY,
+    JSON.stringify(commandHistory.value.slice(0, 100))
+  );
+};
+
+const onReplKeydown = (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    const input = currentInput.value.trim();
+
+    if (input) {
+      addToRepl("input", input);
+
+      if (input !== commandHistory.value[0]) {
+        commandHistory.value.unshift(input);
+        saveHistory();
+      }
+      historyIndex.value = -1;
+
+      evaluateExpression(input);
+      currentInput.value = "";
+    }
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (historyIndex.value < commandHistory.value.length - 1) {
+      historyIndex.value++;
+      currentInput.value = commandHistory.value[historyIndex.value];
+    }
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (historyIndex.value > -1) {
+      historyIndex.value--;
+      currentInput.value =
+        historyIndex.value === -1
+          ? ""
+          : commandHistory.value[historyIndex.value];
+    }
+  }
+};
+
+const onEditorKeydown = (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
     e.preventDefault();
-    run();
+    runEditor();
   }
 };
 
@@ -107,55 +215,10 @@ const prelude = `(define (displayln . xs)
   (for-each (lambda (x) (display x)) xs)
   (newline))
 (define (range a b)
-  (if (> a b) '() (cons a (range (+ a 1) b))))`;
-
-// Worker version (if USE_WORKER true)
-const makeWorker = async () => {
-  const biwaUrl = new URL("../assets/biwa/biwascheme-0.8.0-min.js", import.meta.url);
-  const biwaText = await (await fetch(biwaUrl)).text();
-
-  const WORKER_CORE = `
-    (function(){
-      if (typeof self.document === 'undefined') {
-        self.document = {
-          createElement: () => ({ style:{}, appendChild(){}, setAttribute(){}, innerHTML:'' }),
-          createTextNode: (t) => ({ nodeType:3, data:String(t) }),
-          getElementsByTagName: () => [],
-          body: { appendChild(){} }
-        };
-      }
-      const BS = self.BiwaScheme;
-      function boot(){
-        const I = new BS.Interpreter((e) =>
-          postMessage({ type:'error', message: e && e.message ? e.message : String(e) }));
-        I.evaluate(${JSON.stringify(prelude)}, function(){});
-        return I;
-      }
-      let I = null;
-      try { I = boot(); postMessage({ type:'info', text:'[vm] ready' }); }
-      catch (e) { postMessage({ type:'fatal', message: e && e.message ? e.message : String(e) }); return; }
-
-      onmessage = (evt) => {
-        const { cmd, code } = evt.data || {};
-        if (!I) { postMessage({type:'fatal', message:'Interpreter not initialized'}); return; }
-        if (cmd === 'reset') { I = boot(); postMessage({type:'info', text:'[vm] reset'}); return; }
-        if (cmd === 'eval') {
-          try {
-            I.evaluate(code, (result) => {
-              const text = BS.to_write ? BS.to_write(result) : String(result);
-              postMessage({ type:'result', text });
-            });
-          } catch (e) {
-            postMessage({ type:'error', message: e && e.message ? e.message : String(e) });
-          }
-        }
-      };
-    })();
-  `;
-
-  const blob = new Blob([biwaText, "\n", WORKER_CORE], { type: "text/javascript" });
-  return new Worker(URL.createObjectURL(blob));
-};
+  (if (> a b) '() (cons a (range (+ a 1) b))))
+(define (println . args)
+  (for-each display args)
+  (newline))`;
 
 // Main-thread fallback
 const loadBiwaOnMain = () =>
@@ -172,142 +235,333 @@ const bootMainInterp = async () => {
   const BS = await loadBiwaOnMain();
   const I = new BS.Interpreter((e) => {
     status.value = "error";
-    log(e && e.message ? e.message : String(e), "error");
+    addToRepl("error", e && e.message ? e.message : String(e));
   });
-  I.evaluate(prelude, function(){});
+  I.evaluate(prelude, function () {});
   return { I, BS };
 };
 
-// Run program
-const run = async () => {
-  localStorage.setItem(LS_KEY, code.value);
-  if (mode.value === "worker" && worker) {
-    worker.postMessage({ cmd: "eval", code: code.value });
-  } else if (mode.value === "main" && interp) {
+// Evaluate expression (for REPL input)
+const evaluateExpression = async (inputCode) => {
+  if (mode.value === "main" && interp) {
     const { I, BS } = interp;
     try {
-      I.evaluate(code.value, (result) => {
+      I.evaluate(inputCode, (result) => {
         status.value = "ready";
-        const text = BS.to_write ? BS.to_write(result) : String(result);
-        log(text);
+        if (result !== undefined) {
+          const text = BS.to_write ? BS.to_write(result) : String(result);
+          addToRepl("result", text);
+        }
       });
     } catch (e) {
       status.value = "error";
-      log(e && e.message ? e.message : String(e), "error");
+      addToRepl("error", e && e.message ? e.message : String(e));
+    }
+  }
+};
+
+// Run editor content
+const runEditor = async () => {
+  localStorage.setItem(LS_KEY, code.value);
+  const editorCode = code.value.trim();
+
+  if (editorCode) {
+    addToRepl(
+      "input",
+      `[Editor] ${editorCode.split("\n")[0]}${
+        editorCode.split("\n").length > 1 ? "..." : ""
+      }`
+    );
+
+    const wrappedCode = `(begin ${editorCode})`;
+
+    if (mode.value === "main" && interp) {
+      const { I, BS } = interp;
+      try {
+        I.evaluate(wrappedCode, (result) => {
+          status.value = "ready";
+          if (result !== undefined) {
+            const text = BS.to_write ? BS.to_write(result) : String(result);
+            addToRepl("result", text);
+          }
+        });
+      } catch (e) {
+        status.value = "error";
+        addToRepl("error", e && e.message ? e.message : String(e));
+      }
     }
   }
 };
 
 // Reset interpreter
 const reset = () => {
-  if (mode.value === "worker" && worker) {
-    worker.postMessage({ cmd: "reset" });
-  } else if (mode.value === "main" && interp) {
+  if (mode.value === "main" && interp) {
     bootMainInterp().then(({ I, BS }) => {
       interp = { I, BS };
       status.value = "reset";
-      log("[vm] reset", "info");
+      addToRepl("info", "[vm] reset");
     });
   }
 };
 
 // Load sample program
+const codeExamples = [
+  `(+ 5 3 2)`,
+  `(define x 42)`,
+  `(* x 2)`,
+  `(define (square n) (* n n))`,
+  `(square 7)`,
+  `(map (lambda (x) (* x x)) (range 1 6))`,
+  `(define fruits '(apple banana cherry))`,
+  `(displayln "Hello, " "Racket!")`,
+];
+
 const loadSample = () => {
-  code.value = `(displayln "Hi from Jakarta 👋")
-(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))
-(displayln "fib 10 = " (fib 10))`;
+  const randomExample =
+    codeExamples[Math.floor(Math.random() * codeExamples.length)];
+  currentInput.value = randomExample;
+  nextTick(() => {
+    if (replInput.value) {
+      replInput.value.focus();
+    }
+  });
+};
+
+/* --- Height sync: REPL container follows editor height --- */
+const syncHeights = () => {
+  if (editorEl.value && replContainerEl.value) {
+    const h = editorEl.value.offsetHeight;
+    // Guard against zero height when hidden (e.g., during responsive reflow)
+    if (h > 0) {
+      replContainerEl.value.style.height = h + "px";
+    }
+  }
 };
 
 // Lifecycle
 onMounted(async () => {
-  if (USE_WORKER) {
-    try {
-      worker = await makeWorker();
-      mode.value = "worker";
-      worker.onmessage = (e) => {
-        const { type, text, message } = e.data || {};
-        if (type === "result") { status.value = "ready"; log(String(text)); }
-        else if (type === "info") { status.value = text.includes("reset") ? "reset" : "ready"; log(text, "info"); }
-        else if (type === "error") { status.value = "error"; log(message, "error"); }
-        else if (type === "fatal") { throw new Error(message || "Worker fatal"); }
-      };
-    } catch (e) {
-      // fallback to main thread if worker fails
-      mode.value = "main";
-      const { I, BS } = await bootMainInterp();
-      interp = { I, BS };
-      status.value = "ready";
-      log("[vm] ready (main thread)", "info");
+  mode.value = "main";
+  const { I, BS } = await bootMainInterp();
+  interp = { I, BS };
+  status.value = "ready";
+  addToRepl("info", "[vm] ready");
+
+  // Focus the REPL input
+  nextTick(() => {
+    if (replInput.value) {
+      replInput.value.focus();
     }
+  });
+
+  // Initial height sync after DOM paints
+  await nextTick();
+  syncHeights();
+
+  // Observe editor resizing (user drag + content changes + layout)
+  if ("ResizeObserver" in window && editorEl.value) {
+    resizeObserver = new ResizeObserver(() => {
+      syncHeights();
+    });
+    resizeObserver.observe(editorEl.value);
   } else {
-    mode.value = "main";
-    const { I, BS } = await bootMainInterp();
-    interp = { I, BS };
-    status.value = "ready";
-    log("[vm] ready (main thread)", "info");
+    // Fallback: periodic sync if ResizeObserver isn't available
+    const i = setInterval(syncHeights, 300);
+    resizeObserver = { disconnect: () => clearInterval(i) };
   }
+
+  // Also re-sync on window resize (grid layout changes)
+  window.addEventListener("resize", syncHeights);
 });
 
 onBeforeUnmount(() => {
-  worker?.terminate();
-  worker = null;
+  if (worker) {
+    worker.terminate();
+    worker = null;
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  window.removeEventListener("resize", syncHeights);
 });
 </script>
 
 <style scoped>
 /* Layout */
-.repl { overflow: hidden; }
+.repl {
+  overflow: hidden;
+}
+
 .repl__header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px 16px 0 16px;
 }
-.repl__title { display: flex; gap: 10px; align-items: center; }
-.repl__actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.repl__grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
-@media (max-width: 980px) { .repl__grid { grid-template-columns: 1fr; } }
+.repl__title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
 
-.repl__pane { display: grid; gap: 8px; }
+.repl__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.repl__grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 980px) {
+  .repl__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.repl__pane {
+  display: grid;
+  gap: 8px;
+}
+
 .repl__paneHeader {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 2px;
+}
+
+/* REPL Container: height is controlled via syncHeights() */
+.repl-container {
+  display: flex;
+  flex-direction: column;
+  /* height deliberately NOT fixed; set via inline style by syncHeights() */
+  min-height: 200px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  background: hsl(0 0% 8%);
+  overflow: hidden; /* keep borders tidy while height changes */
+}
+
+.repl-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.repl-input-container {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(0 0% 6%);
+}
+
+.repl-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: hsl(var(--foreground));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+/* REPL Line Styles */
+.repl-line {
+  margin-bottom: 4px;
+}
+
+.input-line {
+  color: hsl(var(--foreground));
+}
+
+.prompt {
+  color: hsl(217 92% 70%);
+  user-select: none;
+  margin-right: 4px;
+}
+
+.result {
+  color: hsl(142 76% 73%);
+  margin-left: 16px;
+}
+
+.error {
+  color: hsl(0 84% 70%);
+  margin-left: 16px;
+}
+
+.info {
+  color: hsl(43 96% 76%);
+  font-style: italic;
+}
+
+.welcome {
+  color: hsl(215 20% 65%);
+  font-style: italic;
+  margin-bottom: 12px;
 }
 
 /* Editor */
 .editor {
-  min-height: 280px;
+  min-height: 400px;
   background: hsl(0 0% 8%);
   border: 1px solid hsl(var(--input));
   border-radius: 12px;
-  resize: vertical;
-}
-
-/* Console */
-.console {
-  background: hsl(0 0% 10%);
-  border: 1px solid hsl(var(--border));
-  border-radius: 12px;
-  padding: 12px;
-  min-height: 180px;
-  white-space: pre-wrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  line-height: 1.45;
-  overflow: auto;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .02);
+  resize: vertical; /* user can drag this; REPL follows */
 }
 
 /* Status pill + dot */
-.pill { gap: 6px; }
+.pill {
+  gap: 6px;
+}
+
 .dot {
-  width: 8px; height: 8px; border-radius: 999px;
-  display: inline-block; margin-right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-right: 2px;
   background: hsl(var(--muted-foreground));
 }
-.status--ok .dot { background: hsl(var(--foreground)); }
-.status--err .dot { background: #ff4d4d; }
-.status--idle .dot { background: hsl(var(--muted-foreground)); }
 
-.small { font-size: 12px; }
-.m-0 { margin: 0; }
-.muted { color: hsl(var(--muted-foreground)); }
+.status--ok .dot {
+  background: hsl(var(--foreground));
+}
+
+.status--err .dot {
+  background: #ff4d4d;
+}
+
+.status--idle .dot {
+  background: hsl(var(--muted-foreground));
+}
+
+.small {
+  font-size: 12px;
+}
+
+.m-0 {
+  margin: 0;
+}
+
+.muted {
+  color: hsl(var(--muted-foreground));
+}
+
+.kbd {
+  padding: 2px 4px;
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  font-size: 11px;
+}
 </style>
