@@ -280,6 +280,7 @@ const runEditor = async () => {
       try {
         I.evaluate(wrappedCode, (result) => {
           status.value = "ready";
+          console.log(result)
           if (result !== undefined) {
             const text = BS.to_write ? BS.to_write(result) : String(result);
             addToRepl("result", text);
