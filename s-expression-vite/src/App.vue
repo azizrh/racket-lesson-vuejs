@@ -23,8 +23,9 @@
 
       <RacketRepl/>
 
-      <!-- Debug Info -->
-      <!-- <div
+      <!-- Debug Info (optional) -->
+      <!--
+      <div
         style="
           background: #000000;
           padding: 10px;
@@ -39,7 +40,8 @@
         currentView: {{ currentView }}<br />
         username: {{ username }}<br />
         currentProblem: {{ currentProblem }}<br />
-      </div> -->
+      </div>
+      -->
 
       <HomePage
         :lessons="lessons"
@@ -53,6 +55,7 @@
       />
 
       <ReviewProblem
+        ref="reviewModal"                
         v-model:show="showReview"
         :problem="currentProblemForReview"
         v-model:answer="reviewAnswer"
@@ -116,9 +119,7 @@
 </template>
 
 <script>
-
-
-import { watch } from "vue"; // 🔹 NEW
+import { watch } from "vue";
 import { useAuth } from "./composables/useAuth";
 import { useLessons } from "./composables/useLessons";
 import { usePractice } from "./composables/usePractice";
@@ -157,55 +158,40 @@ export default {
     const review = useReview(api, auth, lessons);
     const loginHandler = useLoginHandler(api, auth, lessons);
 
-    // Provide hasAccessToLesson for child components (kept as-is)
+    // Provide hasAccessToLesson for child components
     const provide = {
       hasAccessToLesson: lessons.hasAccessToLesson,
     };
+
     const handleLessonRedirect = async (lessonId) => {
       console.log("handleLessonRedirect called with lessonId:", lessonId);
-
       try {
-        // First, switch to practice view
         lessons.currentView.value = "practice";
 
-        // Find the lesson index
         const lessonIndex = lessons.lessons.value.findIndex(
           (l) => l.id === lessonId
         );
         console.log("Found lesson at index:", lessonIndex);
 
-        if (lessonIndex === -1) {
-          throw new Error("Lesson not found");
-        }
+        if (lessonIndex === -1) throw new Error("Lesson not found");
 
-        // Navigate to the lesson
         await lessons.setLessonByIndex(lessonIndex);
-
-        // Load problems for practice
         await practice.loadProblemsForLesson(lessonId);
 
-        // Show success message
         practice.setResult(
           true,
           `📚 Switched to "${lessons.currentLesson.value?.title}" - review the lesson content to better understand this topic!`
         );
 
-        // Scroll to lesson content after DOM update
         setTimeout(() => {
           const lessonElement = document.getElementById("lessonCard");
           if (lessonElement) {
-            lessonElement.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            });
+            lessonElement.scrollIntoView({ behavior: "smooth", block: "start" });
           }
         }, 100);
       } catch (error) {
         console.error("Failed to redirect to lesson:", error);
-        practice.setResult(
-          false,
-          "Failed to load the lesson. Please try again."
-        );
+        practice.setResult(false, "Failed to load the lesson. Please try again.");
       }
     };
 
@@ -220,7 +206,7 @@ export default {
           auth.userId.value = auth.user.value?.user_id || null;
           await lessons.bootstrapLessons();
 
-          // 🔹 NEW: Preload problems for the initial lesson so PracticeView has data
+          // Preload problems for the initial lesson
           const initialLessonId =
             auth.user.value?.active_lesson ??
             lessons.lessons.value?.[0]?.id ??
@@ -241,7 +227,7 @@ export default {
       review.maybeStartRandomReviewTicker();
     };
 
-    // 🔹 NEW: When user navigates to 'practice', ensure problems are loaded once
+    // Load problems on first enter to practice view (if not loaded yet)
     watch(
       () => lessons.currentView.value,
       async (v) => {
@@ -262,16 +248,12 @@ export default {
     return {
       // Auth
       ...auth,
-
       // Lessons
       ...lessons,
-
       // Practice
       ...practice,
-
       // Review
       ...review,
-
       // Login
       ...loginHandler,
 
@@ -303,13 +285,61 @@ export default {
     };
   },
 
+  methods: {
+    // ✅ Global Esc handler with a clear close priority
+    _onGlobalKey(e) {
+      if (e.key !== "Escape") return;
+
+      // 1) If nested redirect modal inside ReviewProblem is open, close it first
+      const rp = this.$refs.reviewModal;
+      if (
+        this.showReview &&
+        rp &&
+        typeof rp.closeLessonRedirect === "function" &&
+        rp.showLessonRedirect
+      ) {
+        rp.closeLessonRedirect();
+        e.preventDefault();
+        return;
+      }
+
+      // 2) Otherwise close the main ReviewProblem modal
+      if (this.showReview) {
+        this.showReview = false;
+        e.preventDefault();
+        return;
+      }
+
+      // 3) Fall back to other modals (order can be adjusted)
+      if (this.showRevealConfirm) {
+        this.showRevealConfirm = false;
+        e.preventDefault();
+        return;
+      }
+      if (this.showModal) {
+        this.showModal = false;
+        e.preventDefault();
+        return;
+      }
+      if (this.showLogin) {
+        this.showLogin = false;
+        e.preventDefault();
+        return;
+      }
+    },
+  },
+
   async mounted() {
     await this.initialize();
+    // Attach global key listener for Esc
+    window.addEventListener("keydown", this._onGlobalKey);
   },
 
   beforeUnmount() {
     this.cancelRandomReviewTicker?.();
     this.clearAdvanceTimer?.();
+    // Clean up listener
+    window.removeEventListener("keydown", this._onGlobalKey);
   },
 };
 </script>

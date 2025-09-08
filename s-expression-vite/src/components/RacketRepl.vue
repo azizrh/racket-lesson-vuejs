@@ -10,7 +10,9 @@
       <div class="repl__actions">
         <button class="btn primary" @click="runEditor">Run Editor</button>
         <button class="btn secondary" @click="clearRepl">Clear REPL</button>
-        <button class="btn secondary" @click="loadSample">Load Sample</button>
+        <button class="btn secondary" title="Load sample" @click="loadSample">
+          Load Sample
+        </button>
         <button class="btn secondary" title="Reset VM" @click="reset">
           Reset VM
         </button>
@@ -24,7 +26,6 @@
           <strong class="small muted">Interactive REPL</strong>
           <span class="small muted">Press Enter to evaluate</span>
         </div>
-
         <div class="repl-container" ref="replContainerEl">
           <div ref="replOutput" class="repl-output">
             <div v-if="replHistory.length === 0" class="welcome">
@@ -49,7 +50,6 @@
               </div>
             </div>
           </div>
-
           <div class="repl-input-container">
             <span class="prompt">&gt;</span>
             <input
@@ -69,26 +69,44 @@
         <div class="repl__paneHeader">
           <strong class="small muted">Multi-line Editor</strong>
           <span class="small muted">
-            <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span> +
+            <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span>
             <span class="kbd">Enter</span> to run
           </span>
         </div>
-        <textarea
-          v-model="code"
-          ref="editorEl"
-          class="input editor"
-          spellcheck="false"
-          @keydown="onEditorKeydown"
-          aria-label="Scheme program editor"
-        />
+        <div ref="cmContainer" class="editor"></div>
       </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+  watch,
+} from "vue";
 
+// CodeMirror imports (CM6)
+import { EditorState } from "@codemirror/state";
+import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import {
+  history,
+  defaultKeymap,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
+import {
+  StreamLanguage,
+  syntaxHighlighting,
+  defaultHighlightStyle,
+} from "@codemirror/language";
+import { scheme } from "@codemirror/legacy-modes/mode/scheme";
+import { oneDark } from "@codemirror/theme-one-dark";
+
+// Local component state
 const USE_WORKER = false;
 const LS_KEY = "racket-repl-code";
 const LS_HISTORY_KEY = "racket-repl-history";
@@ -96,7 +114,7 @@ const LS_HISTORY_KEY = "racket-repl-history";
 const starter = `(define (factorial n)
   (if (<= n 1)
       1
-      (* n (factorial (- n 1)))))
+      (* n (factorial (- n 1)))) )
 
 (factorial 5)
 
@@ -114,19 +132,20 @@ const commandHistory = ref(
   JSON.parse(localStorage.getItem(LS_HISTORY_KEY) ?? "[]")
 );
 const historyIndex = ref(-1);
-
 const replOutput = ref(null);
 const replInput = ref(null);
-
-/* NEW: refs for syncing heights */
-const editorEl = ref(null);
+const cmContainer = ref(null);
 const replContainerEl = ref(null);
+
+// References for height sync
 let resizeObserver = null;
 
 let worker = null;
 let interp = null;
 const mode = ref("idle");
 const status = ref("idle");
+
+/* ---------- REPL helpers ---------- */
 
 const addToRepl = (type, content) => {
   replHistory.value.push({ type, content, timestamp: Date.now() });
@@ -173,16 +192,13 @@ const onReplKeydown = (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     const input = currentInput.value.trim();
-
     if (input) {
       addToRepl("input", input);
-
       if (input !== commandHistory.value[0]) {
         commandHistory.value.unshift(input);
         saveHistory();
       }
       historyIndex.value = -1;
-
       evaluateExpression(input);
       currentInput.value = "";
     }
@@ -204,12 +220,31 @@ const onReplKeydown = (e) => {
   }
 };
 
-const onEditorKeydown = (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-    e.preventDefault();
-    runEditor();
+/* ---------- Handle #<undef> filtering ---------- */
+
+// Return true if BiwaScheme value is the "unspecified" value.
+const isUndef = (BS, val) => {
+  if (val === undefined || val === null) return true;
+  // Biwa exposes an `undef` sentinel; guard in case it changes/missing
+  if (BS && BS.undef && val === BS.undef) return true;
+  // Fallback: string representation equals "#<undef>"
+  try {
+    const written = BS && BS.to_write ? BS.to_write(val) : String(val);
+    if (written === "#<undef>") return true;
+  } catch {
+    // ignore conversion errors
   }
+  return false;
 };
+
+// Print result to REPL only if it's not #<undef>
+const printResult = (BS, val) => {
+  if (isUndef(BS, val)) return; // suppress #<undef>
+  const text = BS && BS.to_write ? BS.to_write(val) : String(val);
+  if (text && text !== "#<undef>") addToRepl("result", text);
+};
+
+/* ---------- Prelude & Biwa boot ---------- */
 
 const prelude = `(define (displayln . xs)
   (for-each (lambda (x) (display x)) xs)
@@ -220,7 +255,7 @@ const prelude = `(define (displayln . xs)
   (for-each display args)
   (newline))`;
 
-// Main-thread fallback
+// Load BiwaScheme if worker mode is disabled
 const loadBiwaOnMain = () =>
   new Promise((resolve, reject) => {
     if (window.BiwaScheme) return resolve(window.BiwaScheme);
@@ -241,17 +276,15 @@ const bootMainInterp = async () => {
   return { I, BS };
 };
 
-// Evaluate expression (for REPL input)
+/* ---------- Evaluate ---------- */
+
 const evaluateExpression = async (inputCode) => {
   if (mode.value === "main" && interp) {
     const { I, BS } = interp;
     try {
       I.evaluate(inputCode, (result) => {
         status.value = "ready";
-        if (result !== undefined) {
-          const text = BS.to_write ? BS.to_write(result) : String(result);
-          addToRepl("result", text);
-        }
+        printResult(BS, result); // <-- filter #<undef>
       });
     } catch (e) {
       status.value = "error";
@@ -260,11 +293,9 @@ const evaluateExpression = async (inputCode) => {
   }
 };
 
-// Run editor content
 const runEditor = async () => {
   localStorage.setItem(LS_KEY, code.value);
   const editorCode = code.value.trim();
-
   if (editorCode) {
     addToRepl(
       "input",
@@ -272,19 +303,13 @@ const runEditor = async () => {
         editorCode.split("\n").length > 1 ? "..." : ""
       }`
     );
-
     const wrappedCode = `(begin ${editorCode})`;
-
     if (mode.value === "main" && interp) {
       const { I, BS } = interp;
       try {
         I.evaluate(wrappedCode, (result) => {
           status.value = "ready";
-          console.log(result)
-          if (result !== undefined) {
-            const text = BS.to_write ? BS.to_write(result) : String(result);
-            addToRepl("result", text);
-          }
+          printResult(BS, result); // <-- filter #<undef>
         });
       } catch (e) {
         status.value = "error";
@@ -294,7 +319,6 @@ const runEditor = async () => {
   }
 };
 
-// Reset interpreter
 const reset = () => {
   if (mode.value === "main" && interp) {
     bootMainInterp().then(({ I, BS }) => {
@@ -305,7 +329,6 @@ const reset = () => {
   }
 };
 
-// Load sample program
 const codeExamples = [
   `(+ 5 3 2)`,
   `(define x 42)`,
@@ -328,18 +351,70 @@ const loadSample = () => {
   });
 };
 
-/* --- Height sync: REPL container follows editor height --- */
+// Height sync: update repl container height to match editor height
 const syncHeights = () => {
-  if (editorEl.value && replContainerEl.value) {
-    const h = editorEl.value.offsetHeight;
-    // Guard against zero height when hidden (e.g., during responsive reflow)
+  if (cmContainer.value && replContainerEl.value) {
+    const h = cmContainer.value.offsetHeight;
     if (h > 0) {
       replContainerEl.value.style.height = h + "px";
     }
   }
 };
 
-// Lifecycle
+/* ---------- CodeMirror setup ---------- */
+
+let cmView = null;
+
+const setupCodeMirror = () => {
+  if (!cmContainer.value) return;
+
+  const runKeymap = keymap.of([
+    {
+      key: "Mod-Enter",
+      preventDefault: true,
+      run: () => (runEditor(), true),
+    },
+    {
+      key: "Shift-Enter",
+      preventDefault: true,
+      run: () => (runEditor(), true),
+    },
+  ]);
+
+  cmView = new EditorView({
+    state: EditorState.create({
+      doc: code.value,
+      extensions: [
+        runKeymap,
+        lineNumbers(),
+        history(),
+        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        StreamLanguage.define(scheme),
+        syntaxHighlighting(defaultHighlightStyle),
+        oneDark,
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            code.value = update.state.doc.toString();
+          }
+        }),
+      ],
+    }),
+    parent: cmContainer.value,
+  });
+
+  cmView.focus();
+};
+
+// Sync CodeMirror doc when `code` changes externally
+watch(code, (newVal) => {
+  if (cmView && cmView.state.doc.toString() !== newVal) {
+    cmView.dispatch({
+      changes: { from: 0, to: cmView.state.doc.length, insert: newVal },
+    });
+  }
+});
+
+// Lifecycle hooks
 onMounted(async () => {
   mode.value = "main";
   const { I, BS } = await bootMainInterp();
@@ -347,30 +422,23 @@ onMounted(async () => {
   status.value = "ready";
   addToRepl("info", "[vm] ready");
 
-  // Focus the REPL input
   nextTick(() => {
-    if (replInput.value) {
-      replInput.value.focus();
-    }
+    if (replInput.value) replInput.value.focus();
   });
 
-  // Initial height sync after DOM paints
   await nextTick();
+  setupCodeMirror();
   syncHeights();
 
-  // Observe editor resizing (user drag + content changes + layout)
-  if ("ResizeObserver" in window && editorEl.value) {
+  if ("ResizeObserver" in window && cmContainer.value) {
     resizeObserver = new ResizeObserver(() => {
       syncHeights();
     });
-    resizeObserver.observe(editorEl.value);
+    resizeObserver.observe(cmContainer.value);
   } else {
-    // Fallback: periodic sync if ResizeObserver isn't available
     const i = setInterval(syncHeights, 300);
     resizeObserver = { disconnect: () => clearInterval(i) };
   }
-
-  // Also re-sync on window resize (grid layout changes)
   window.addEventListener("resize", syncHeights);
 });
 
@@ -384,6 +452,10 @@ onBeforeUnmount(() => {
     resizeObserver = null;
   }
   window.removeEventListener("resize", syncHeights);
+  if (cmView) {
+    cmView.destroy();
+    cmView = null;
+  }
 });
 </script>
 
@@ -392,62 +464,52 @@ onBeforeUnmount(() => {
 .repl {
   overflow: hidden;
 }
-
 .repl__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px 0 16px;
 }
-
 .repl__title {
   display: flex;
   gap: 10px;
   align-items: center;
 }
-
 .repl__actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .repl__grid {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr 1fr;
 }
-
 @media (max-width: 980px) {
   .repl__grid {
     grid-template-columns: 1fr;
   }
 }
-
 .repl__pane {
   display: grid;
   gap: 8px;
 }
-
 .repl__paneHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 2px;
 }
-
-/* REPL Container: height is controlled via syncHeights() */
+/* REPL Container */
 .repl-container {
   display: flex;
   flex-direction: column;
-  /* height deliberately NOT fixed; set via inline style by syncHeights() */
   min-height: 200px;
   border: 1px solid hsl(var(--border));
   border-radius: 12px;
   background: hsl(0 0% 8%);
-  overflow: hidden; /* keep borders tidy while height changes */
+  overflow: hidden;
 }
-
 .repl-output {
   flex: 1;
   overflow-y: auto;
@@ -456,7 +518,6 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.5;
 }
-
 .repl-input-container {
   display: flex;
   align-items: center;
@@ -464,7 +525,6 @@ onBeforeUnmount(() => {
   border-top: 1px solid hsl(var(--border));
   background: hsl(0 0% 6%);
 }
-
 .repl-input {
   flex: 1;
   background: transparent;
@@ -475,57 +535,54 @@ onBeforeUnmount(() => {
   font-size: 13px;
   margin-left: 8px;
 }
-
 /* REPL Line Styles */
 .repl-line {
   margin-bottom: 4px;
 }
-
 .input-line {
   color: hsl(var(--foreground));
 }
-
 .prompt {
   color: hsl(217 92% 70%);
   user-select: none;
   margin-right: 4px;
 }
-
 .result {
   color: hsl(142 76% 73%);
   margin-left: 16px;
 }
-
 .error {
   color: hsl(0 84% 70%);
   margin-left: 16px;
 }
-
 .info {
   color: hsl(43 96% 76%);
   font-style: italic;
 }
-
 .welcome {
   color: hsl(215 20% 65%);
   font-style: italic;
   margin-bottom: 12px;
 }
-
-/* Editor */
+/* Editor container + CM taking full space */
 .editor {
+  position: relative;
   min-height: 400px;
   background: hsl(0 0% 8%);
   border: 1px solid hsl(var(--input));
   border-radius: 12px;
-  resize: vertical; /* user can drag this; REPL follows */
+  resize: vertical;
 }
-
+.editor :deep(.cm-editor) {
+  height: 100%;
+}
+.editor :deep(.cm-scroller) {
+  overflow: auto;
+}
 /* Status pill + dot */
 .pill {
   gap: 6px;
 }
-
 .dot {
   width: 8px;
   height: 8px;
@@ -534,31 +591,24 @@ onBeforeUnmount(() => {
   margin-right: 2px;
   background: hsl(var(--muted-foreground));
 }
-
 .status--ok .dot {
   background: hsl(var(--foreground));
 }
-
 .status--err .dot {
   background: #ff4d4d;
 }
-
 .status--idle .dot {
   background: hsl(var(--muted-foreground));
 }
-
 .small {
   font-size: 12px;
 }
-
 .m-0 {
   margin: 0;
 }
-
 .muted {
   color: hsl(var(--muted-foreground));
 }
-
 .kbd {
   padding: 2px 4px;
   background: hsl(var(--muted));
