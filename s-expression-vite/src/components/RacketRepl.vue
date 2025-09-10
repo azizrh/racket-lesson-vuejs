@@ -13,9 +13,27 @@
         <button class="btn secondary" title="Load sample" @click="loadSample">
           Load Sample
         </button>
-        <button class="btn secondary" title="Reset VM" @click="reset">
+        <!-- <button class="btn secondary" title="Reset VM" @click="reset">
           Reset VM
-        </button>
+        </button> -->
+        <!-- File Upload Button -->
+        <div class="file-upload-wrapper">
+          <input
+            type="file"
+            id="fileInput"
+            ref="fileInput"
+            @change="handleFileUpload"
+            accept=".rkt,.scm,.ss,.lisp,.txt"
+            style="display: none"
+          />
+          <button
+            class="btn secondary"
+            title="Upload file"
+            @click="triggerFileUpload"
+          >
+            Upload
+          </button>
+        </div>
       </div>
     </header>
 
@@ -68,10 +86,15 @@
       <section class="repl__pane">
         <div class="repl__paneHeader">
           <strong class="small muted">Multi-line Editor</strong>
-          <span class="small muted">
-            <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span>
-            <span class="kbd">Enter</span> to run
-          </span>
+          <div class="editor-header-right">
+            <span v-if="currentFileName" class="file-name small muted">{{
+              currentFileName
+            }}</span>
+            <span class="small muted">
+              <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span>
+              <span class="kbd">Enter</span> to run
+            </span>
+          </div>
         </div>
         <div ref="cmContainer" class="editor"></div>
       </section>
@@ -136,6 +159,8 @@ const replOutput = ref(null);
 const replInput = ref(null);
 const cmContainer = ref(null);
 const replContainerEl = ref(null);
+const fileInput = ref(null);
+const currentFileName = ref("");
 
 // References for height sync
 let resizeObserver = null;
@@ -144,6 +169,60 @@ let worker = null;
 let interp = null;
 const mode = ref("idle");
 const status = ref("idle");
+
+/* ---------- File Upload Functions ---------- */
+
+const triggerFileUpload = () => {
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
+};
+
+const handleFileUpload = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  currentFileName.value = file.name;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const fileContent = e.target.result;
+    code.value = fileContent;
+
+    // Save to localStorage
+    localStorage.setItem(LS_KEY, fileContent);
+
+    // Add info message to REPL
+    addToRepl(
+      "info",
+      `[file] Loaded ${file.name} (${formatFileSize(file.size)})`
+    );
+
+    // Focus the editor after loading
+    nextTick(() => {
+      if (cmView) {
+        cmView.focus();
+      }
+    });
+  };
+
+  reader.onerror = () => {
+    addToRepl("error", `[file] Error reading ${file.name}`);
+  };
+
+  reader.readAsText(file);
+
+  // Clear the input so the same file can be uploaded again
+  event.target.value = "";
+};
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+};
 
 /* ---------- REPL helpers ---------- */
 
@@ -500,6 +579,27 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 0 2px;
 }
+
+/* File Upload Styling */
+.file-upload-wrapper {
+  position: relative;
+}
+
+.editor-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-name {
+  color: hsl(142 76% 73%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 2px 6px;
+  background: hsl(0 0% 12%);
+  border-radius: 4px;
+  border: 1px solid hsl(var(--border));
+}
+
 /* REPL Container */
 .repl-container {
   display: flex;
